@@ -1,0 +1,17 @@
+{% extends "rest_framework/base.html" %}
+{% load staticfiles %}
+
+{% block bootstrap_theme %}
+{#    <link rel="stylesheet" href="{% static "css/bootstrap.min.css" %}" type="text/css">#}
+    <link rel="stylesheet" href="https://cdn.bootcss.com/bootswatch/3.3.5/darkly/bootstrap.min.css" type="text/css">
+{% endblock %}
+
+{% block bootstrap_navbar_variant %}{% endblock %}
+
+{% block title %}ZJNUCloud Intra API{% endblock %}
+
+{% block branding %}
+    <a class='navbar-brand' rel="nofollow" href='#'>
+        ZJNUCloud Intra API
+    </a>
+{% endblock %}
