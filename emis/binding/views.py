@@ -151,7 +151,7 @@ class BindingView(APIView, SignupView):
 
     permission_classes = (AllowAny,)
     authentication_classes = ()
-    allowed_methods = ('POST', 'OPTIONS', 'HEAD')
+    allowed_methods = ('POST', 'DELETE', 'OPTIONS', 'HEAD')
     token_model = Token
     serializer_class = TokenSerializer
 
