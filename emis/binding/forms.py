@@ -3,7 +3,6 @@ from django import forms
 from django.utils.translation import ugettext_lazy as _
 
 from .adapter import EmisAccountAdapter
-from emis.models import BmobUser
 
 
 class BaseForm(forms.Form):
@@ -29,16 +28,18 @@ class BindingForm(BaseForm):
 
     def save(self, request):
         adapter = EmisAccountAdapter()
-        # First create BmobUser
-        bmob_user = adapter.new_bmob_user(request)
+        bmob_user = adapter.get_bmob_user(self)
+        emis_user = adapter.get_emis_user(self)
+        # Save Bmob user
         adapter.save_bmob_user(request, bmob_user, self)
-        # Then save EMIS user
-        user = adapter.new_user(request)
-        adapter.save_user(request, user, bmob_user, self)
-        self.custom_signup(request, user)
-        return user
+        # Save EMIS user
+        adapter.save_emis_user(request, emis_user, self)
+        # Associate EMIS user with Bmob user
+        emis_user.bmobusers.add(bmob_user)
+        self.complete_binding(request, emis_user)
+        return emis_user, bmob_user
 
-    def custom_signup(self, request, user):
+    def complete_binding(self, request, user):
         custom_form = super(BindingForm, self)
         if hasattr(custom_form, 'signup') and callable(custom_form.signup):
             custom_form.signup(request, user)

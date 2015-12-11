@@ -5,6 +5,7 @@ import os
 from django.conf import settings
 from django.contrib.auth.models import BaseUserManager
 from django.db import models
+from django.db.models import F
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -13,8 +14,21 @@ from django.utils.encoding import python_2_unicode_compatible
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_auth_token(sender, instance=None, created=False, **kwargs):
+    """
+    Signal to create token after an EMIS user saved
+    """
     if created:
         Token.objects.create(user=instance)
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def remove_auth_token(sender, instance=None, created=False, **kwargs):
+    """
+    Signal to remove token and itself if no associated BmobUser found
+    """
+    if not created:
+        if instance.count == 0:
+            Token.objects.filter(user=instance).delete()
 
 
 class EmisUserManager(BaseUserManager):
@@ -25,7 +39,7 @@ class EmisUserManager(BaseUserManager):
 
     def _create_user(self, username, is_validate, is_superuser, **extra_fields):
         """
-        Creates and saves a User with the given username, email and password.
+        Creates and saves a User with the given username.
         """
         now = timezone.now()
         if not username:
@@ -47,19 +61,25 @@ class EmisUserManager(BaseUserManager):
 @python_2_unicode_compatible
 class BmobUser(models.Model):
     bmob_user = models.CharField(primary_key=True, max_length=255)
+    count = models.IntegerField(default=0)
+    # emis_username = models.ForeignKey(EmisUser, related_name='emis_username', to_field='username')
 
     class Meta:
-        db_table = 'bmob_user'
+        db_table = 'emis_bmob_user'
+
+    def __str__(self):
+        return self.bmob_user
 
 
 @python_2_unicode_compatible
 class EmisUser(models.Model):
-    username = models.CharField(primary_key=True, max_length=200,)
+    username = models.CharField(primary_key=True, max_length=255,)
     # created = models.DateTimeField(auto_now_add=True)
     created = models.DateTimeField(default=datetime.datetime.now,)
     is_active = models.BooleanField(default=True,)
     is_superuser = models.BooleanField(default=False,)
-    bmob_account = models.ForeignKey(BmobUser, null=True, max_length=255,)
+    count = models.IntegerField(default=0)
+    bmobusers = models.ManyToManyField(BmobUser, db_table='emis_user_bmobusers')
 
     objects = EmisUserManager()
 
@@ -68,6 +88,9 @@ class EmisUser(models.Model):
 
     class Meta:
         db_table = 'emis_user'
+
+    def __str__(self):
+        return self.username
 
     def is_authenticated(self):
         """
@@ -82,9 +105,9 @@ class Token(models.Model):
     """
     The EMIS authorization token model.
     """
-    key = models.CharField(max_length=40, primary_key=True)
-    user = models.OneToOneField(EmisUser, related_name='emis_token', to_field='username')
-    created = models.DateTimeField(auto_now_add=True)
+    key = models.CharField(max_length=40, primary_key=True,)
+    user = models.ForeignKey(EmisUser, related_name='emis_token', to_field='username',)
+    created = models.DateTimeField(auto_now_add=True,)
 
     class Meta:
         db_table = 'emis_auth_token'

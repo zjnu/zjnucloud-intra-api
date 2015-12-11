@@ -1,3 +1,5 @@
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django.http import (HttpRequest, HttpResponseRedirect,
                          HttpResponsePermanentRedirect)
 from django.core.urlresolvers import reverse
@@ -10,15 +12,20 @@ from rest_framework import status
 from django.views.generic.edit import FormView
 from django.views.decorators.debug import sensitive_post_parameters
 from django.utils.decorators import method_decorator
+from emis.binding import app_settings
+from emis.binding.adapter import EmisAccountAdapter
 
 from .utils import (get_next_redirect_url, complete_binding,
                     get_login_redirect_url, passthrough_next_redirect_url,)
 from .exceptions import ImmediateHttpResponse
 from emis.binding.forms import BindingForm
-from emis.models import Token, EmisUser
+from emis.models import Token, EmisUser, BmobUser
 from emis.serializers import TokenSerializer
 from emis.core import Session
-from emis.core import STATUS_SUCCESS
+from emis.core import (STATUS_SUCCESS, STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT,
+                       STATUS_EXCEED_EMIS_BIND_TIMES_LIMIT,
+                       MSG_BMOB_BIND_TIMES_COUNT, MSG_EXCEED_BMOB_BIND_TIMES_LIMIT,
+                       MSG_EXCEED_EMIS_BIND_TIMES_LIMIT)
 
 from .adapter import get_adapter
 from collections import OrderedDict
@@ -167,17 +174,20 @@ class BindingView(APIView, SignupView):
         except EmisUser.DoesNotExist:
             raise Http404
 
-    def form_valid(self, form):
-        self.user = form.save(self.request)
+    def perform_binding(self, form):
+        self.emis_user, self.bmob_user = form.save(self.request)
         self.token, created = self.token_model.objects.get_or_create(
-            user=self.user
+            user=self.emis_user
         )
+        self.append_message(message=MSG_BMOB_BIND_TIMES_COUNT.format(
+            app_settings.BMOB_USER_LIMIT - self.bmob_user.count
+        ))
         if isinstance(self.request, HttpRequest):
             request = self.request
         else:
             request = self.request._request
 
-        return complete_binding(request, self.user,
+        return complete_binding(request, self.emis_user,
                            self.get_success_url())
 
     def post(self, request, *args, **kwargs):
@@ -187,21 +197,53 @@ class BindingView(APIView, SignupView):
         self.initial = {}
         self.response_data = OrderedDict()
         self.request.POST = self.request.data.copy()
+        adapter = EmisAccountAdapter()
         form_class = self.get_form_class()
         self.form = self.get_form(form_class)
-        if not self.emis_valid(self.request.POST):
-            # request EMIS username or password is invalid
-            return self.get_response_with_emis_errors()
         if self.form.is_valid():
-            self.form_valid(self.form)
+            # Check if EMIS username or password is valid
+            if not self.emis_valid(self.request.POST):
+                return self.get_response_with_emis_errors()
+            # Check if association existed
+            existed, emis_user, bmob_user = adapter.is_association_exists(self.form)
+            if not existed:
+                """
+                No association between EMIS user and Bmob user found,
+                A new Bmob user or existing bmob user is going to bind new EMIS user
+                """
+                # Check if exceed bmob account bind times limit
+                if not self.bmob_exists_valid(self.request.POST):
+                    return self.get_response_with_emis_errors()
+                # Check if exceed EMIS account bind times limit
+                if not self.emis_exists_valid(self.request.POST):
+                    return self.get_response_with_emis_errors()
+                self.perform_binding(self.form)
+            else:
+                """
+                Association already exists, return the current emis_user
+                """
+                self.emis_user = emis_user
+                self.token, created = self.token_model.objects.get_or_create(
+                    user=self.emis_user
+                )
+                self.response_data['message'] = MSG_BMOB_BIND_TIMES_COUNT.format(
+                    app_settings.BMOB_USER_LIMIT - bmob_user.count
+                )
             return self.get_response()
         else:
             return self.get_response_with_errors()
 
     def delete(self, request, *args, **kwargs):
-        self.request.POST = self.request.data.copy()
+        # Support either params in URL or in form data
+        if len(request.data) > 0:
+            self.request.POST = self.request.data.copy()
+        elif len(request.query_params) > 0:
+            self.request.POST = self.request.query_params.copy()
+
         if self.emis_user_delete(self.request.POST):
             return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            return self.get_response_with_not_found_errors()
 
     def get_response(self):
         # serializer = self.serializer_class(instance=self.token)
@@ -214,28 +256,95 @@ class BindingView(APIView, SignupView):
     def get_response_with_emis_errors(self):
         return Response(self.response_data, status=status.HTTP_406_NOT_ACCEPTABLE)
 
+    def get_response_with_not_found_errors(self):
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
     def get_form_class(self):
         return BindingForm
 
     def emis_valid(self, data):
+        """
+        Perform EMIS account validation
+        """
         try:
             emis_username = data['username']
             emis_password = data['password']
             self.status, self.message = Session(username=emis_username,
                               password=emis_password).login()
-            self.response_data['status'] = self.status
-            self.response_data['message'] = self.message
+            self.append_message(self.status, self.message)
             if self.status == STATUS_SUCCESS:
                 return True
         except MultiValueDictKeyError:
             return False
         return False
 
+    def bmob_exists_valid(self, data):
+        """
+        Validate that request Bmob user has not exceeded the limitation
+        value comes from app_settings.BMOB_USER_LIMIT
+        """
+        bmob_username = data['bmob']
+        try:
+            bmob_user = BmobUser.objects.get(bmob_user=bmob_username)
+            count = bmob_user.emisuser_set.count()
+            if count >= app_settings.BMOB_USER_LIMIT:
+                self.append_message(
+                    STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT,
+                    MSG_EXCEED_BMOB_BIND_TIMES_LIMIT,
+                )
+                return False
+            self.append_message(MSG_BMOB_BIND_TIMES_COUNT.format(
+                app_settings.BMOB_USER_LIMIT - count - 1
+            ))
+            return True
+        except BmobUser.DoesNotExist:
+            return True
+
+    def emis_exists_valid(self, data):
+        """
+        Validate that request EMIS user has not exceeded the limitation,
+        value comes from app_settings.EMIS_USER_LIMIT
+        """
+        username = data['username']
+        try:
+            user = get_user_model().objects.get(username=username)
+            count = user.bmobusers.count()
+            if count >= app_settings.EMIS_USER_LIMIT:
+                self.append_message(
+                    STATUS_EXCEED_EMIS_BIND_TIMES_LIMIT,
+                    MSG_EXCEED_EMIS_BIND_TIMES_LIMIT.format(count),
+                )
+                return False
+            return True
+        except get_user_model().DoesNotExist:
+            return True
+
+    def append_message(self, status=0, message=''):
+        self.response_data['status'] = status
+        self.response_data['message'] = message
+
     def emis_user_delete(self, data):
+        """
+        Perform EMIS user unbinding
+        """
         try:
             emis_username = data['username']
-            user = self.get_object(emis_username)
-            user.delete()
+            bmob_username = data['bmob']
+            # user = self.get_object(emis_username)
+            bmob_user = BmobUser.objects.get(bmob_user=bmob_username)
+            emis_user = get_user_model().objects.get(username=emis_username)
+            # Count > 1, minus 1, else delete()
+            if bmob_user.count > 1:
+                bmob_user.count -= 1
+                emis_user.count -= 1
+                bmob_user.emisuser_set.remove(emis_user)
+                bmob_user.save()
+            else:
+                emis_user.count -= 1
+                bmob_user.delete()
+            emis_user.save()
             return True
         except MultiValueDictKeyError:
+            return False
+        except ObjectDoesNotExist:
             return False

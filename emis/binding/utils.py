@@ -53,6 +53,11 @@ def user_username(user, *args):
     return user_field(user, 'username', *args)
 
 
+def user_count(user, *args):
+    if args and hasattr(user, 'count'):
+        setattr(user, 'count', args[0])
+
+
 def user_bmobuser(user, *args):
     if args:
             # Setter

@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.utils.translation import ugettext_lazy as _
 
 from . import app_settings
@@ -8,47 +8,20 @@ from emis.models import BmobUser
 
 class EmisAccountAdapter(object):
 
-    def stash_verified_email(self, request, email):
-        request.session['account_verified_email'] = email
-
-    def unstash_verified_email(self, request):
-        ret = request.session.get('account_verified_email')
-        request.session['account_verified_email'] = None
-        return ret
-
-    def is_email_verified(self, request, email):
+    def get_emis_user(self, form):
         """
-        Checks whether or not the email address is already verified
-        beyond allauth scope, for example, by having accepted an
-        invitation before signing up.
+        Get or instantiates a new EMIS user instance.
         """
-        ret = False
-        verified_email = request.session.get('account_verified_email')
-        if verified_email:
-            ret = verified_email.lower() == email.lower()
-        return ret
-
-    def is_open_for_signup(self, request):
-        """
-        Checks whether or not the site is open for signups.
-
-        Next to simply returning True/False you can also intervene the
-        regular flow by raising an ImmediateHttpResponse
-        """
-        return True
-
-    def new_user(self, request):
-        """
-        Instantiates a new User instance.
-        """
-        user = get_user_model()()
+        username = form.cleaned_data.get('username')
+        user, created = get_user_model().objects.get_or_create(username=username)
         return user
 
-    def new_bmob_user(self, request):
+    def get_bmob_user(self, form):
         """
-        Instantiates a new Bmob user instance.
+        Get or instantiates a new Bmob user instance.
         """
-        user = BmobUser()
+        username = form.cleaned_data.get('bmob')
+        user, created = BmobUser.objects.get_or_create(bmob_user=username)
         return user
 
     def populate_username(self, request, user):
@@ -62,17 +35,18 @@ class EmisAccountAdapter(object):
         if app_settings.USER_MODEL_USERNAME_FIELD:
             user_username(user, username)
 
-    def save_user(self, request, user, bmob_user, form, commit=True):
+    def save_emis_user(self, request, user, form, commit=True):
         """
         Saves a new `User` instance using information provided in the
         signup form.
         """
-        from .utils import user_username, user_bmobuser
+        from .utils import user_username, user_count
 
         data = form.cleaned_data
         username = data.get('username')
         user_username(user, username)
-        user_bmobuser(user, bmob_user)
+        # Atomic counter
+        user_count(user, user.count + 1)
         self.populate_username(request, user)
         if commit:
             # Ability not to commit makes it easier to derive from
@@ -84,47 +58,16 @@ class EmisAccountAdapter(object):
         """
         Saves the Bmob user related to EMIS user
         """
+        from .utils import user_count
 
         data = form.cleaned_data
-        username = data.get('bmob')
-        setattr(user, 'bmob_user', username)
+        bmob_username = data.get('bmob')
+        setattr(user, 'bmob_user', bmob_username)
+        # Atomic counter
+        user_count(user, user.count + 1)
         if commit:
             user.save()
         return user
-
-    def clean_username(self, username):
-        """
-        Validates the username. You can hook into this if you want to
-        (dynamically) restrict what usernames can be chosen.
-        """
-
-        # TODO: Add regexp support to USERNAME_BLACKLIST
-        username_blacklist_lower = [ub.lower()
-                                    for ub in app_settings.USERNAME_BLACKLIST]
-        if username.lower() in username_blacklist_lower:
-            raise ValidationError(_("Username can not be used. "
-                                          "Please use other username."))
-        username_field = 'username'
-        assert username_field
-        user_model = get_user_model()
-        try:
-            query = {username_field + '__iexact': username}
-            user_model.objects.get(**query)
-        except user_model.DoesNotExist:
-            return username
-        raise ValidationError(_("This username is already taken. Please "
-                                      "choose another."))
-
-    def clean_password(self, password):
-        """
-        Validates a password. You can hook into this if you want to
-        restric the allowed password choices.
-        """
-        min_length = app_settings.PASSWORD_MIN_LENGTH
-        if len(password) < min_length:
-            raise ValidationError(_("Password must be a minimum of {0} "
-                                          "characters.").format(min_length))
-        return password
 
     def login(self, request, user):
         from django.contrib.auth import login
@@ -135,17 +78,23 @@ class EmisAccountAdapter(object):
                 = "allauth.account.auth_backends.AuthenticationBackend"
         login(request, user)
 
-    def confirm_email(self, request, email_address):
-        """
-        Marks the email address as confirmed on the db
-        """
-        email_address.verified = True
-        email_address.set_as_primary(conditional=True)
-        email_address.save()
-
     def set_password(self, user, password):
         user.set_password(password)
         user.save()
+
+    def is_association_exists(self, form):
+        """
+        :return: A tuple(Boolean, EmisUser). If association exists, return True and its
+                 EmisUser object, otherwise return (False, None)
+        """
+        try:
+            emis_username = form.cleaned_data.get('username')
+            emis_user = get_user_model().objects.get(username=emis_username)
+            bmob_username = form.cleaned_data.get('bmob')
+            bmob_user = emis_user.bmobusers.get(pk=bmob_username)
+            return True, emis_user, bmob_user
+        except ObjectDoesNotExist:
+            return False, None, None
 
     def is_safe_url(self, url):
         from django.utils.http import is_safe_url
