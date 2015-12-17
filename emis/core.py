@@ -3,6 +3,7 @@ from io import BytesIO
 
 from django.utils.datastructures import MultiValueDictKeyError
 import requests
+import re
 from PIL import Image
 from lxml import etree
 
@@ -25,17 +26,23 @@ STATUS_ERR_UNKNOWN = -1
 STATUS_SUCCESS = 0  # Login success
 STATUS_ERR_USERNAME = 1  # Username invalid
 STATUS_ERR_PASSWORD = 2  # Password invalid
-STATUS_ERR_CODE = 3  # Captcha invalid
+STATUS_ERR_CODE = 3  # Captcha invalid & other
 STATUS_ERR_EMIS = 4  # EMIS error
+STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT = 10  # Exceed bmob account bind times limit
+STATUS_EXCEED_EMIS_BIND_TIMES_LIMIT = 11  # Exceed EMIS account bind times limit
 
 # Messages
 MSG_ERR_PARAM = '参数错误'
 MSG_ERR_UNKNOWN = '未知错误'
 MSG_SUCCESS = ''  # Login success
 MSG_ERR_USERNAME = '账号不存在哦，请检查账号是否输入正确。'  # Username invalid
-MSG_ERR_PASSWORD = '您的密码输错了呢，请检查。'  # Password invalid
+MSG_ERR_PASSWORD = '你的密码输错了呢，请检查。'  # Password invalid
 MSG_ERR_CODE = '我们的服务器出现了异常，程序猿正在玩命抢修中。。。'  # Captcha invalid
 MSG_ERR_EMIS = '教务系统暂时无法访问了，过会儿再访问吧！'  # EMIS error
+MSG_BMOB_BIND_TIMES_COUNT = '绑定成功！你还能绑定{}个教务账号。'  # Exceed bmob account bind times limit
+# MSG_EMIS_BIND_TIMES_COUNT = ''  # Exceed EMIS account bind times limit
+MSG_EXCEED_BMOB_BIND_TIMES_LIMIT = '你绑定过的教务账号太多了呢，请联系我们处理。'  # Exceed bmob account bind times limit
+MSG_EXCEED_EMIS_BIND_TIMES_LIMIT = '该教务账号已被{}个人绑定，太丧病了吧！请联系我们处理。'  # Exceed EMIS account bind times limit
 
 
 def init(username, password, usertype='student'):
@@ -107,12 +114,13 @@ class EmisBase:
     def __init__(self, request):
         self.response_data = OrderedDict()
         try:
-            # Detect request method
-            if request.method == 'POST':
-                self.username = request.data['username']
-                self.password = request.data['password']
-            # Log in
-            self.session, self.status, self.message = init(self.username, self.password)
+            if request is not None:
+                # Detect request method
+                if request.method == 'POST':
+                    self.username = request.data['username']
+                    self.password = request.data['password']
+                # Log in
+                self.session, self.status, self.message = init(self.username, self.password)
         except MultiValueDictKeyError:
             self.status = STATUS_ERR_PARAM
             self.message = MSG_ERR_PARAM
@@ -237,6 +245,8 @@ class CourseTable(EmisBase):
         return self.response_data
 
     def parse(self, content):
+        # f = open('testdata.html', encoding='utf8')
+        # selector = etree.HTML(f.read())
         selector = etree.HTML(content)
         # Banner which contains name and info
         banner_content = selector.xpath(r'//p')[0]
@@ -247,19 +257,86 @@ class CourseTable(EmisBase):
         courses = list()
         for each in all_courses_data:
             info = OrderedDict()
-            info['no'] = str(each.xpath(r'./td/text()')[0]).strip()
-            info['id'] = str(each.xpath(r'./td/text()')[1]).strip()
-            info['name'] = str(each.xpath(r'./td/text()')[2]).strip()
-            info['teacher'] = str(each.xpath(r'./td/text()')[3]).strip()
-            info['time'] = str(each.xpath(r'./td/div/text()')[0]).strip()
-            info['classroom'] = str(each.xpath(r'./td/text()')[6]).strip()
-            info['total'] = str(each.xpath(r'./td/text()')[7]).strip()
-            info['elected'] = str(each.xpath(r'./td/text()')[8]).strip()
-            info['credit'] = str(each.xpath(r'./td/text()')[9]).strip()
-            info['property'] = str(each.xpath(r'./td/text()')[10]).strip()
-            info['remarks'] = str(each.xpath(r'./td/text()')[11]).strip()
+            field_cleaned = self.clean_field(each.xpath(r'./td'))
+            info['no'] = self.populate_field(field_cleaned, 0)
+            info['id'] = self.populate_field(field_cleaned, 1)
+            info['name'] = self.populate_field(field_cleaned, 2)
+            info['teacher'] = self.populate_field(field_cleaned, 3)
+            info['time'] = self.populate_field(field_cleaned, 4)
+            info['classroom'] = self.populate_field(field_cleaned, 5)
+            info['total'] = self.populate_field(field_cleaned, 6)
+            info['elected'] = self.populate_field(field_cleaned, 7)
+            info['credit'] = self.populate_field(field_cleaned, 8)
+            info['property'] = self.populate_field(field_cleaned, 9)
+            info['remarks'] = self.populate_field(field_cleaned, 10)
             courses.append(info)
         self.response_data['courses'] = courses
+
+    def clean_field(self, fields):
+        field_cleaned = list()
+        for i, field in enumerate(fields):
+            # Check whether current node has some child nodes
+            # If yes, generate the children_text
+            children = field.xpath(r'./*')
+            children_text = self.clean_children(children, str())
+            # Concat text in current node and its children
+            val = self.concat_field(str(field.text).strip(), children_text)
+            # Deal with time (which located at 5th <td>), split it to list
+            if i == 4:
+                vals = self.deal_time(val)
+                field_cleaned.append(vals)
+            else:
+
+                field_cleaned.append(val)
+        return field_cleaned
+
+    def clean_children(self, children, children_text):
+        if len(children) == 0:
+            return children_text
+        if len(children) > 0:
+            for child in children:
+                if child.tail is not None:
+                    c_tail = str(child.tail).strip()
+                    if c_tail != '':
+                        if children_text == '':
+                            children_text += str(child.tail).strip()
+                        else:
+                            children_text += ', ' + str(child.tail).strip()
+                if child.text is not None:
+                    c_text = str(child.text).strip()
+                    if c_text != '':
+                        if children_text == '':
+                            children_text += str(child.text).strip()
+                        else:
+                            children_text += ', ' + str(child.text).strip()
+                return self.clean_children(child.xpath(r'./*'), children_text)
+
+    def concat_field(self, val, child):
+        if child != '':
+            if val != '':
+                val += ', ' + child
+            else:
+                val += child
+        return val
+
+    def populate_field(self, fields, suffix):
+        try:
+            return fields[suffix]
+        except IndexError:
+            return ''
+
+    def deal_time(self, time):
+        group = re.findall(r'((?:一|二|三|四|五|六|七|日)(?:\d+,)+)', time, re.S)
+        return group
+
+    def deal_classroom(self, classroom):
+        res_str = classroom.xpath('string(.)')
+        group = re.findall(r'(\d+-\d+|\S+)', res_str, re.S)
+        final_str = ''
+        for i in range(0, len(group) - 1):
+            final_str += group[i] + ', '
+        final_str += group[len(group) - 1]
+        return final_str
 
 
 class Exam(EmisBase):
