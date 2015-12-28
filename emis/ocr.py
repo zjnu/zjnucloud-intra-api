@@ -1,5 +1,6 @@
 from PIL import Image
 import pytesseract
+from emis.exceptions import CaptchaIsNotNumberException
 
 __author__ = 'ddMax'
 
@@ -26,6 +27,8 @@ def ocr_captcha(image):
         else:
             table.append(1)
     out = out.point(table, '1')
-    # out.save('code-new.bmp')
     text = pytesseract.image_to_string(out)
+
+    if text.isnumeric() is False:
+        raise CaptchaIsNotNumberException(text)
     return text

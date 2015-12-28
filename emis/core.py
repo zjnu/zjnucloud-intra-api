@@ -8,6 +8,7 @@ from PIL import Image
 from lxml import etree
 
 from emis import ocr
+from emis.exceptions import CaptchaIsNotNumberException
 
 __author__ = 'ddmax'
 
@@ -72,12 +73,20 @@ class Session(requests.Session):
             codeimg = self.get(URL_CODE)
             imgbytes = codeimg.content
             # Recognize the captcha
-            image = Image.open(BytesIO(imgbytes))
-            code = ocr.ocr_captcha(image)
-            print('Checkcode is ' + code)
-            # with open('code.bmp', 'wb') as f:
-            #     f.write(imgbytes)
-            # code = input('Please input code:')
+            try:
+                image = Image.open(BytesIO(imgbytes))
+                code = ocr.ocr_captcha(image)
+                print('Checkcode is ' + code)
+                # with open('code.bmp', 'wb') as f:
+                #     f.write(imgbytes)
+                # code = input('Please input code:')
+            except IOError as e:
+                print(e)
+                continue
+            except CaptchaIsNotNumberException as ce:
+                print(ce)
+                continue
+
             # Post data
             data = {
                 'radioUserType': self.usertype,
@@ -89,6 +98,7 @@ class Session(requests.Session):
             # with open('result.html', 'wb') as f:
             #     f.write(result.content.decode('gbk').encode('utf-8'))
             self.result_code = result.status_code
+
         status, message = self.check_status(result.content.decode('gbk'))
         return status, message
 
@@ -98,7 +108,9 @@ class Session(requests.Session):
                 return STATUS_ERR_USERNAME, MSG_ERR_USERNAME
             elif content.find('当前用户密码错误') != -1:
                 return STATUS_ERR_PASSWORD, MSG_ERR_PASSWORD
-            elif content.find('验证码输入错误') != -1:
+            elif content.find('验证码输入错误') != -1 or \
+                 content.find('浙江师范大学教务管理系统EMIS') == -1:
+                # Captcha error or other situations that indicate login error
                 return STATUS_ERR_CODE, MSG_ERR_CODE
             else:
                 return STATUS_SUCCESS, MSG_SUCCESS
