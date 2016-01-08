@@ -339,6 +339,30 @@ class CourseTable(EmisBase):
 
     def deal_time(self, time):
         group = re.findall(r'((?:一|二|三|四|五|六|七|日)(?:\d+,)+)', time, re.S)
+        # Fix issue one single day contains multiple course time, eg. "三1,2,8,9,"
+        for each in group:
+            day = each[:1]
+            times = each[1:].split(',')
+            val = str()
+            is_inconsecutive = False
+            for i, v1 in enumerate(times):
+                # Check whether the time is consecutive
+                val = val + v1 + ',' if v1 != '' else val
+                try:
+                    v1 = int(v1) + 1
+                    v2 = int(times[i+1])
+                    if v1 != v2:
+                        # If not consecutive, append separate time to group
+                        is_inconsecutive = True
+                        group.append(day + val)
+                        val = ''
+                except ValueError:
+                    continue
+            if is_inconsecutive:
+                # If inconsecutive, remove the original time
+                group.remove(each)
+                # append the last time
+                group.append(day + val)
         return group
 
     def deal_classroom(self, classroom):
