@@ -15,7 +15,7 @@ __author__ = 'ddmax'
 # EMIS_URL
 URL_LOGIN = 'http://10.1.68.13:8001/login.asp'
 URL_LOGOUT = 'http://10.1.68.13:8001/loginOut.asp'
-URL_CODE = 'http://10.1.68.13:8001/checkcode.asp'
+URL_CODE = 'http://10.1.74.13/checkcode.asp'
 URL_TERMSCORE = 'http://10.1.68.13:8001/studentWeb/ViewScore/ViewTermScore.asp'
 URL_TOTALSCORE = 'http://10.1.68.13:8001/studentWeb/ViewScore/ViewTotalScore.asp'
 URL_COURSETABLE = 'http://10.1.68.13:8001/studentWeb/SelectCourse/displayhistory.asp'
@@ -64,7 +64,7 @@ class Session(requests.Session):
 
     def login(self):
         global result, request_times
-        # Request times at least 10
+        # Try to do 10 times to do captcha
         request_times = 0
         while self.result_code != 200 and request_times < 10:
             request_times += 1
