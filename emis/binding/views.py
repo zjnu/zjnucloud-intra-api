@@ -192,17 +192,16 @@ class BindingView(APIView, SignupView):
 
     def post(self, request, *args, **kwargs):
         """
-        Create authorized user and return the generated token
+        Create new user and return the generated token
         """
         self.initial = {}
         self.response_data = OrderedDict()
-        self.request.POST = self.request.data.copy()
         adapter = EmisAccountAdapter()
         form_class = self.get_form_class()
         self.form = self.get_form(form_class)
         if self.form.is_valid():
             # Check if EMIS username or password is valid
-            if not self.emis_valid(self.request.POST):
+            if not self.emis_valid(self.request.data):
                 return self.get_response_with_emis_errors()
             # Check if association existed
             existed, emis_user, bmob_user = adapter.is_association_exists(self.form)
@@ -212,10 +211,10 @@ class BindingView(APIView, SignupView):
                 A new Bmob user or existing bmob user is going to bind new EMIS user
                 """
                 # Check if exceed bmob account bind times limit
-                if not self.bmob_exists_valid(self.request.POST):
+                if not self.bmob_exists_valid(self.request.data):
                     return self.get_response_with_emis_errors()
                 # Check if exceed EMIS account bind times limit
-                if not self.emis_exists_valid(self.request.POST):
+                if not self.emis_exists_valid(self.request.data):
                     return self.get_response_with_emis_errors()
                 self.perform_binding(self.form)
             else:
@@ -236,11 +235,11 @@ class BindingView(APIView, SignupView):
     def delete(self, request, *args, **kwargs):
         # Support either params in URL or in form data
         if len(request.data) > 0:
-            self.request.POST = self.request.data.copy()
+            self.post_data = self.request.data.copy()
         elif len(request.query_params) > 0:
-            self.request.POST = self.request.query_params.copy()
+            self.post_data = self.request.query_params.copy()
 
-        if self.emis_user_delete(self.request.POST):
+        if self.emis_user_delete(self.post_data):
             return Response(status=status.HTTP_204_NO_CONTENT)
         else:
             return self.get_response_with_not_found_errors()
