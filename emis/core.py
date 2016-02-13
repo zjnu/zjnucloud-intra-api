@@ -6,6 +6,8 @@ import requests
 import re
 from PIL import Image
 from lxml import etree
+import time
+import random
 
 from emis import ocr
 from emis.exceptions import CaptchaIsNotNumberException
@@ -27,7 +29,7 @@ STATUS_ERR_UNKNOWN = -1
 STATUS_SUCCESS = 0  # Login success
 STATUS_ERR_USERNAME = 1  # Username invalid
 STATUS_ERR_PASSWORD = 2  # Password invalid
-STATUS_ERR_CODE = 3  # Captcha invalid & other
+STATUS_ERR_CODE = 4  # Captcha invalid & other // TODO
 STATUS_ERR_EMIS = 4  # EMIS error
 STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT = 10  # Exceed bmob account bind times limit
 STATUS_EXCEED_EMIS_BIND_TIMES_LIMIT = 11  # Exceed EMIS account bind times limit
@@ -38,8 +40,9 @@ MSG_ERR_UNKNOWN = '未知错误'
 MSG_SUCCESS = ''  # Login success
 MSG_ERR_USERNAME = '账号不存在哦，请检查账号是否输入正确。'  # Username invalid
 MSG_ERR_PASSWORD = '你的密码输错了呢，请检查。'  # Password invalid
-MSG_ERR_CODE = '我们的服务器出现了异常，程序猿正在玩命抢修中。。。'  # Captcha invalid
-MSG_ERR_EMIS = '教务系统暂时无法访问了，过会儿再访问吧！'  # EMIS error
+MSG_ERR_CODE = '教务系统已关闭，本学期将不再会有数据更新，请在下学期开学前后再访问'  # Captcha invalid
+# MSG_ERR_CODE = '我们的服务器出现了异常，程序猿正在玩命抢修中。。。'  # Captcha invalid
+MSG_ERR_EMIS = '教务系统的访问量太高，过会儿再访问吧！'  # EMIS error
 MSG_BMOB_BIND_TIMES_COUNT = '绑定成功！你还能绑定{}个教务账号。'  # Exceed bmob account bind times limit
 # MSG_EMIS_BIND_TIMES_COUNT = ''  # Exceed EMIS account bind times limit
 MSG_EXCEED_BMOB_BIND_TIMES_LIMIT = '你绑定过的教务账号太多了呢，请联系我们处理。'  # Exceed bmob account bind times limit
@@ -50,6 +53,22 @@ def init(username, password, usertype='student'):
     session = Session(username, password, usertype)
     status, message = session.login()
     return session, status, message
+
+
+# Headers
+def gen_random_header():
+    return {
+        # 'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0',
+        'X-Real-IP': '10.11.12.' + str(random.randint(1, 253)),
+        'X-Forwarded-For': '222.223.233.' + str(random.randint(1, 253)),
+    }
+
+
+def fuckthedog(seconds=0.2):
+    # Avoid the fucking safedog
+    time.sleep(seconds)
+    print('Slept ' + str(seconds) + 's, continue')
 
 
 class Session(requests.Session):
@@ -64,27 +83,32 @@ class Session(requests.Session):
 
     def login(self):
         global result, request_times
+        print('Start login...')
         # Try to do 10 times to do captcha
         request_times = 0
         while self.result_code != 200 and request_times < 10:
             request_times += 1
-            print('Attempt to get checkcode...')
+            # print('Attempt to get checkcode...')
             # Fetch captcha
-            codeimg = self.get(URL_CODE)
+
+            fuckthedog()
+            codeimg = self.get(URL_CODE, headers=gen_random_header())
+            print('Checkcode captured: ', end='')
             imgbytes = codeimg.content
             # Recognize the captcha
+            # with open('code.bmp', 'wb') as f:
+            #     f.write(imgbytes)
+            # code = input('Please input code:')
             try:
                 image = Image.open(BytesIO(imgbytes))
                 code = ocr.ocr_captcha(image)
-                print('Checkcode is ' + code)
-                # with open('code.bmp', 'wb') as f:
-                #     f.write(imgbytes)
-                # code = input('Please input code:')
+                print(code)
             except IOError as e:
-                print(e)
+                # print(e)
                 continue
             except CaptchaIsNotNumberException as ce:
                 print(ce)
+                fuckthedog()
                 continue
 
             # Post data
@@ -94,7 +118,10 @@ class Session(requests.Session):
                 'pwd': self.password,
                 'GetCode': code,
             }
-            result = self.post(URL_LOGIN, data=data)
+
+            # Perform login
+            fuckthedog()
+            result = self.post(URL_LOGIN, data=data, headers=gen_random_header())
             # with open('result.html', 'wb') as f:
             #     f.write(result.content.decode('gbk').encode('utf-8'))
             self.result_code = result.status_code
@@ -113,11 +140,15 @@ class Session(requests.Session):
                 # Captcha error or other situations that indicate login error
                 return STATUS_ERR_CODE, MSG_ERR_CODE
             else:
+                # Login success!
                 return STATUS_SUCCESS, MSG_SUCCESS
+        print('EMIS banned!')
         return STATUS_ERR_EMIS, MSG_ERR_EMIS
 
     def logout(self,):
-        self.get(URL_LOGOUT)
+        print('Success, logged out!')
+        fuckthedog()
+        self.get(URL_LOGOUT, headers=gen_random_header())
         self.close()
 
 
@@ -150,7 +181,8 @@ class Score(EmisBase):
         # If login success, get scores
         if self.status == STATUS_SUCCESS:
             print('Getting total score...')
-            total_score = self.session.post(URL_TOTALSCORE)
+            fuckthedog(1)
+            total_score = self.session.post(URL_TOTALSCORE, headers=gen_random_header())
             total_score.encoding = 'gbk'
             content = total_score.content.decode('gbk')
             # with open('termscore.html', 'wb') as f:
@@ -159,7 +191,6 @@ class Score(EmisBase):
             self.parse(content)
             # Log out
             self.session.logout()
-            print('Logged out!')
         else:
             # Empty score if login failed
             self.response_data['scores'] = list()
@@ -241,10 +272,12 @@ class CourseTable(EmisBase):
     def get_course_table(self, year, semester):
         # If login success, get scores
         if self.status == STATUS_SUCCESS:
+            print('Getting course table...')
+            fuckthedog()
             params = '?year=' + year \
                      + '&nouse=' + str(int(year) + 1) \
                      + '&select=' + semester
-            courses = self.session.get(URL_COURSETABLE + params)
+            courses = self.session.get(URL_COURSETABLE + params, headers=gen_random_header())
             courses.encoding = 'gbk'
             content = courses.content.decode('gbk')
             # Parse the data with xpath
@@ -383,7 +416,9 @@ class Exam(EmisBase):
     def get_exam_schedule(self):
         # If login success, get scores
         if self.status == STATUS_SUCCESS:
-            exams = self.session.get(URL_EXAMSCHEDULE)
+            print('Getting exam ...')
+            fuckthedog()
+            exams = self.session.get(URL_EXAMSCHEDULE, headers=gen_random_header())
             exams.encoding = 'gbk'
             content = exams.content.decode('gbk')
             # Parse the data with xpath
