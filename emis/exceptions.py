@@ -1,5 +1,5 @@
 class CaptchaIsNotNumberException(Exception):
-    default_detail = 'Captcha is not recognized as a number'
+    default_detail = 'Captcha is not recognized as a number, retry'
 
     def __init__(self, code=None):
         if code is not None:
