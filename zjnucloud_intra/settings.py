@@ -99,6 +99,17 @@ DATABASES = {
     }
 }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'r7og1oxvmid7jku2',
+#         'USER': 'r7og1oxvmid7jku2',
+#         'PASSWORD': 'wyc87671268',
+#         'HOST': 'rdscw84603zd94ucpax8.mysql.rds.aliyuncs.com',
+#         'PORT': '3306',
+#     }
+# }
+
 # EMIS User Model
 AUTH_USER_MODEL = 'emis.EmisUser'
 
