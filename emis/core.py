@@ -40,8 +40,8 @@ MSG_ERR_UNKNOWN = '未知错误'
 MSG_SUCCESS = ''  # Login success
 MSG_ERR_USERNAME = '账号不存在哦，请检查账号是否输入正确。'  # Username invalid
 MSG_ERR_PASSWORD = '你的密码输错了呢，请检查。'  # Password invalid
-MSG_ERR_CODE = '教务系统已关闭，本学期将不再会有数据更新，请在下学期开学前后再访问'  # Captcha invalid
-# MSG_ERR_CODE = '我们的服务器出现了异常，程序猿正在玩命抢修中。。。'  # Captcha invalid
+# MSG_ERR_CODE = '教务系统已关闭，本学期将不再会有数据更新，请在下学期开学前后再访问'  # EMIS closed
+MSG_ERR_CODE = '教务系统无法访问了，可能正在维护'  # EMIS closed
 MSG_ERR_EMIS = '教务系统的访问量太高，过会儿再访问吧！'  # EMIS error
 MSG_BMOB_BIND_TIMES_COUNT = '绑定成功！你还能绑定{}个教务账号。'  # Exceed bmob account bind times limit
 # MSG_EMIS_BIND_TIMES_COUNT = ''  # Exceed EMIS account bind times limit
@@ -67,8 +67,9 @@ def gen_random_header():
 
 def fuckthedog(seconds=0.2):
     # Avoid the fucking safedog
-    time.sleep(seconds)
-    print('Slept ' + str(seconds) + 's, continue')
+    # time.sleep(seconds)
+    # print('Slept ' + str(seconds) + 's, continue')
+    pass
 
 
 class Session(requests.Session):
@@ -83,7 +84,6 @@ class Session(requests.Session):
 
     def login(self):
         global result, request_times
-        print('Start login...')
         # Try to do 10 times to do captcha
         request_times = 0
         while self.result_code != 200 and request_times < 10:
@@ -93,7 +93,7 @@ class Session(requests.Session):
 
             fuckthedog()
             codeimg = self.get(URL_CODE, headers=gen_random_header())
-            print('Checkcode captured: ', end='')
+            # print('Checkcode captured: ', end='')
             imgbytes = codeimg.content
             # Recognize the captcha
             # with open('code.bmp', 'wb') as f:
@@ -102,7 +102,7 @@ class Session(requests.Session):
             try:
                 image = Image.open(BytesIO(imgbytes))
                 code = ocr.ocr_captcha(image)
-                print(code)
+                # print(code)
             except IOError as e:
                 # print(e)
                 continue
@@ -120,6 +120,7 @@ class Session(requests.Session):
             }
 
             # Perform login
+            print('Perform login as username: ' + self.username + ', password: ' + self.password)
             fuckthedog()
             result = self.post(URL_LOGIN, data=data, headers=gen_random_header())
             # with open('result.html', 'wb') as f:
@@ -354,7 +355,8 @@ class CourseTable(EmisBase):
                             children_text += str(child.text).strip()
                         else:
                             children_text += ', ' + str(child.text).strip()
-                return self.clean_children(child.xpath(r'./*'), children_text)
+                children_text += self.clean_children(child.xpath(r'./*'), '')
+        return children_text
 
     def concat_field(self, val, child):
         if child != '':
