@@ -43,8 +43,10 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
+    'common',
     'emis',
     'emis.binding',
+    'onepay',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -96,19 +98,24 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    },
+    'localhost': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'zjnucloud_intra',
+        'USER': 'root',
+        'PASSWORD': '{ddmax}',
+        'HOST': 'localhost',
+        'PORT': '3306',
+    },
+    'bce': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'zjnucloud_intra',
+        'USER': 'ddmax',
+        'PASSWORD': 'wyc87671268',
+        'HOST': 'mysql55.rdsmzm1d9i5apyx.rds.gz.baidubce.com',
+        'PORT': '3306',
     }
 }
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'r7og1oxvmid7jku2',
-#         'USER': 'r7og1oxvmid7jku2',
-#         'PASSWORD': 'wyc87671268',
-#         'HOST': 'rdscw84603zd94ucpax8.mysql.rds.aliyuncs.com',
-#         'PORT': '3306',
-#     }
-# }
 
 # EMIS User Model
 AUTH_USER_MODEL = 'emis.EmisUser'

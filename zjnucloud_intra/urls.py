@@ -45,4 +45,5 @@ urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
     url(r'^emis/', include('emis.urls')),
     url(r'^emis/', include('emis.binding.urls')),
+    url(r'^onepay/', include('onepay.urls')),
 ]
