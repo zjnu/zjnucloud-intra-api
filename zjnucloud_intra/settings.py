@@ -26,10 +26,10 @@ SECRET_KEY = 'mlii7#*d&+#bs9oe4($qfa-cun%a1mq4a6s!_vv5tou727l15e'
 DEBUG = True
 # DEBUG = False
 
-ALLOWED_HOSTS = []
-# ALLOWED_HOSTS = [
-#     '*',
-# ]
+# ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '*',
+]
 
 
 # Application definition
@@ -46,7 +46,8 @@ INSTALLED_APPS = (
     'common',
     'emis',
     'emis.binding',
-    'onepay',
+    'onecard',
+    'rest_framework_docs',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -58,6 +59,7 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
 )
 
 REST_FRAMEWORK = {
@@ -111,7 +113,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'zjnucloud_intra',
         'USER': 'ddmax',
-        'PASSWORD': 'wyc87671268',
+        'PASSWORD': '_ddmax_',
         'HOST': 'mysql55.rdsmzm1d9i5apyx.rds.gz.baidubce.com',
         'PORT': '3306',
     }

@@ -2,8 +2,8 @@
 from __future__ import unicode_literals
 
 from django.db import migrations, models
-import onepay.models
 import datetime
+import onecard.models
 
 
 class Migration(migrations.Migration):
@@ -14,31 +14,32 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='OnePayUser',
+            name='OneCardUser',
             fields=[
-                ('username', models.CharField(serialize=False, max_length=255, primary_key=True)),
+                ('username', models.CharField(max_length=255, primary_key=True, serialize=False)),
+                ('password', models.CharField(default='', max_length=2048)),
                 ('created', models.DateTimeField(default=datetime.datetime.now)),
                 ('is_active', models.BooleanField(default=True)),
                 ('is_superuser', models.BooleanField(default=False)),
                 ('count', models.IntegerField(default=0)),
-                ('bmobusers', models.ManyToManyField(to='common.BmobUser', db_table='onepay_user_bmobusers')),
+                ('bmobusers', models.ManyToManyField(db_table='onecard_user_bmobusers', to='common.BmobUser')),
             ],
             options={
-                'db_table': 'onepay_user',
+                'db_table': 'onecard_user',
             },
             managers=[
-                ('objects', onepay.models.OnePayUserManager()),
+                ('objects', onecard.models.OneCardUserManager()),
             ],
         ),
         migrations.CreateModel(
             name='Token',
             fields=[
-                ('key', models.CharField(serialize=False, max_length=40, primary_key=True)),
+                ('key', models.CharField(max_length=40, primary_key=True, serialize=False)),
                 ('created', models.DateTimeField(auto_now_add=True)),
-                ('user', models.ForeignKey(related_name='onepay_token', to='onepay.OnePayUser')),
+                ('user', models.ForeignKey(related_name='onecard_token', to='onecard.OneCardUser')),
             ],
             options={
-                'db_table': 'onepay_auth_token',
+                'db_table': 'onecard_auth_token',
             },
         ),
     ]

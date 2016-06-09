@@ -3,10 +3,10 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 
-from onepay.models import Token, OnePayUser
+from onecard.models import Token, OneCardUser
 
 
-class OnePayTokenAuthentication(BaseAuthentication):
+class OneCardTokenAuthentication(BaseAuthentication):
     """
     EMIS token authentication.
 
@@ -31,7 +31,7 @@ class OnePayTokenAuthentication(BaseAuthentication):
 
         try:
             token = auth[1].decode()
-        except OnePayUser.DoesNotExist:
+        except OneCardUser.DoesNotExist:
             raise exceptions.AuthenticationFailed('No such user')
         except UnicodeError:
             msg = _('Invalid token header. Token string should not contain invalid characters.')

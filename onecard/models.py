@@ -12,7 +12,7 @@ from django.utils.encoding import python_2_unicode_compatible
 from common.models import BmobUser
 
 
-class OnePayUserManager(BaseUserManager):
+class OneCardUserManager(BaseUserManager):
     use_in_migrations = True
 
     def get_by_natural_key(self, username):
@@ -40,22 +40,22 @@ class OnePayUserManager(BaseUserManager):
 
 
 @python_2_unicode_compatible
-class OnePayUser(models.Model):
+class OneCardUser(models.Model):
     username = models.CharField(primary_key=True, max_length=255,)
-    # created = models.DateTimeField(auto_now_add=True)
+    password = models.CharField(default='', max_length=2048,)
     created = models.DateTimeField(default=datetime.datetime.now,)
     is_active = models.BooleanField(default=True,)
     is_superuser = models.BooleanField(default=False,)
     count = models.IntegerField(default=0)
-    bmobusers = models.ManyToManyField(BmobUser, db_table='onepay_user_bmobusers')
+    bmobusers = models.ManyToManyField(BmobUser, db_table='onecard_user_bmobusers')
 
-    objects = OnePayUserManager()
+    objects = OneCardUserManager()
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = []
 
     class Meta:
-        db_table = 'onepay_user'
+        db_table = 'onecard_user'
 
     def __str__(self):
         return self.username
@@ -74,11 +74,11 @@ class Token(models.Model):
     The EMIS authorization token model.
     """
     key = models.CharField(max_length=40, primary_key=True,)
-    user = models.ForeignKey(OnePayUser, related_name='onepay_token', to_field='username',)
+    user = models.ForeignKey(OneCardUser, related_name='onecard_token', to_field='username',)
     created = models.DateTimeField(auto_now_add=True,)
 
     class Meta:
-        db_table = 'onepay_auth_token'
+        db_table = 'onecard_auth_token'
 
     def save(self, *args, **kwargs):
         if not self.key:
@@ -86,14 +86,14 @@ class Token(models.Model):
         return super(Token, self).save(*args, **kwargs)
 
     def generate_key(self):
-        # Length of OnePay Token is 21
+        # Length of OneCard Token is 21
         return binascii.hexlify(os.urandom(21)).decode()
 
     def __str__(self):
         return self.key
 
 
-@receiver(post_save, sender=OnePayUser)
+@receiver(post_save, sender=OneCardUser)
 def create_auth_token(sender, instance=None, created=False, **kwargs):
     """
     Signal to create token after an EMIS user saved
@@ -102,7 +102,7 @@ def create_auth_token(sender, instance=None, created=False, **kwargs):
         Token.objects.create(user=instance)
 
 
-@receiver(post_save, sender=OnePayUser)
+@receiver(post_save, sender=OneCardUser)
 def remove_auth_token(sender, instance=None, created=False, **kwargs):
     """
     Signal to remove token and itself if no associated BmobUser found
