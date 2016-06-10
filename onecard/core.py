@@ -9,6 +9,7 @@ import requests
 
 from onecard.models import OneCardUser
 
+
 # OneCard_URL
 URL_LOGIN = 'http://ykt.zjnu.edu.cn/'
 URL_MAIN = 'http://ykt.zjnu.edu.cn/Cardholder/Cardholder.aspx'
@@ -25,10 +26,11 @@ STATUS_ERR_UNKNOWN = 101000
 STATUS_ERR_PARAM = 101001
 STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT = 101002
 STATUS_EXCEED_ONECARD_BIND_TIMES_LIMIT = 101003
-STATUS_ONLINE_BANK_CHARGE_ERR_UNKNOWN = 101100
+STATUS_ONLINE_BANK_CHARGE_SUCCESS = 101100
 STATUS_ONLINE_BANK_CHARGE_INVALID_AMOUNT = 101101
 STATUS_ONLINE_BANK_CHARGE_PAY_PASSWORD_WRONG = 101102
 STATUS_ONLINE_BANK_CHARGE_AMOUNT_LIMIT = 101103
+STATUS_ONLINE_BANK_CHARGE_ERR_UNKNOWN = 101199
 
 # Messages
 MSG_SUCCESS = 'success'
@@ -44,6 +46,12 @@ MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT = '非法的充值金额，请重新输入
 MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT_ZERO = '充值金额必须大于0！'
 MSG_ONLINE_BANK_CHARGE_PAY_PASSWORD_WRONG = '交易密码错误，请重新输入！'
 MSG_ONLINE_BANK_CHARGE_AMOUNT_LIMIT = '由于安全原因，充值金额不得超过1000元！'
+
+# Results
+# Stands for charge in process
+RESULT_CODE_ONLINE_BANK_CHARGE_TRANSFER_IN_PROCESS = 0
+# Stands for charge complete successfully
+RESULT_CODE_ONLINE_BANK_CHARGE_TRANSFER_SUCCESS = 1
 
 # Limits
 ONECARD_USER_LIMIT = 1
@@ -305,12 +313,11 @@ class OneCardBalance(OneCardBase):
         :return: Boolean, Number
         """
         try:
-            if amount.strip().isnumeric():
-                n = round(decimal.Decimal(amount.strip()), 2)
-                if n < ONECARD_CHARGE_AMOUNT_LIMIT:
-                    return True, n
-                else:
-                    return False, n
+            n = round(decimal.Decimal(amount.strip()), 2)
+            if n < ONECARD_CHARGE_AMOUNT_LIMIT:
+                return True, n
+            else:
+                return False, n
         except:
             pass
         return False, None
@@ -324,9 +331,9 @@ class OneCardBalance(OneCardBase):
 
     def parse_charge(self, content):
         if content.find('转账申请成功') != -1:
-            self.response_data['code'] = STATUS_SUCCESS
+            self.response_data['code'] = STATUS_ONLINE_BANK_CHARGE_SUCCESS
             self.response_data['message'] = MSG_ONLINE_BANK_CHARGE_SUCCESS
-            self.response_data['result'] = {}
+            self.response_data['result'] = RESULT_CODE_ONLINE_BANK_CHARGE_TRANSFER_IN_PROCESS
         elif content.find('充值金额非法') != -1:
             self._append_error_response_data(
                 STATUS_ONLINE_BANK_CHARGE_INVALID_AMOUNT,

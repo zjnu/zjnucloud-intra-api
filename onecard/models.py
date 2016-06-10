@@ -68,6 +68,19 @@ class OneCardUser(models.Model):
         return True
 
 
+class OneCardCharge(models.Model):
+    code = models.IntegerField(default='')
+    message = models.TextField(default='')
+    result = models.SmallIntegerField(null=True)
+    user = models.ForeignKey(OneCardUser, related_name='charge_user', to_field='username')
+    amount = models.TextField(default='', null=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'onecard_charge'
+        ordering = ('created',)
+
+
 @python_2_unicode_compatible
 class Token(models.Model):
     """

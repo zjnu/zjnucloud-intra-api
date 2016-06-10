@@ -14,7 +14,7 @@ from onecard.core import STATUS_SUCCESS, STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT, \
     MSG_EXCEED_BMOB_BIND_TIMES_LIMIT, MSG_EXCEED_ONECARD_BIND_TIMES_LIMIT
 from onecard.models import Token
 from onecard.serializers import BaseOneCardSerializer, BindingSerializer, OneCardDetailsSerializer, \
-    OneCardBalanceSerializer
+    OneCardChargeSerializer
 
 CODE_PARAMS_ERROR = '400'
 MESSAGE_PARAMS_ERROR = '请求参数错误，请检查'
@@ -195,15 +195,14 @@ class OneCardBalanceList(GenericAPIView):
     """
     allowed_methods = ('GET', 'POST')
     authentication_classes = (OneCardTokenAuthentication,)
-    serializer_class = OneCardBalanceSerializer
+    serializer_class = OneCardChargeSerializer
 
     def get(self, request, username, format=None):
         """
         Get account balance
         """
         data = core.OneCardBalance(username).get_balance()
-        serializer = OneCardBalanceSerializer(data)
-        return Response(serializer.data)
+        return Response(data)
 
     def post(self, request, username, format=None):
         """
@@ -216,8 +215,6 @@ class OneCardBalanceList(GenericAPIView):
                 amount,
                 pay_password,
             )
-            serializer = OneCardBalanceSerializer(data)
-            return Response(serializer.data)
         else:
             if not amount:
                 data = core.get_response_data_without_result(
@@ -229,5 +226,17 @@ class OneCardBalanceList(GenericAPIView):
                     core.STATUS_ONLINE_BANK_CHARGE_AMOUNT_LIMIT,
                     core.MSG_ONLINE_BANK_CHARGE_AMOUNT_LIMIT
                 )
-            serializer = OneCardBalanceSerializer(data)
-            return Response(serializer.data)
+
+        data['username'] = username
+        data['amount'] = amount
+        serializer = OneCardChargeSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+        else:
+            print(serializer.errors)
+
+        if data.get('code') == core.STATUS_ONLINE_BANK_CHARGE_SUCCESS:
+            status_code = status.HTTP_201_CREATED
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+        return Response(serializer.data, status=status_code)
