@@ -209,9 +209,25 @@ class OneCardBalanceList(GenericAPIView):
         """
         Make a charge
         """
-        data = core.OneCardBalance(username).charge(
-            request.data['amount'],
-            request.data['payPassword'],
-        )
-        serializer = OneCardBalanceSerializer(data)
-        return Response(serializer.data)
+        is_amount_valid, amount = core.OneCardBalance.check_amount(request.data.get('amount'))
+        pay_password = request.data.get('payPassword')
+        if is_amount_valid:
+            data = core.OneCardBalance(username).charge(
+                amount,
+                pay_password,
+            )
+            serializer = OneCardBalanceSerializer(data)
+            return Response(serializer.data)
+        else:
+            if not amount:
+                data = core.get_response_data_without_result(
+                    core.STATUS_ONLINE_BANK_CHARGE_INVALID_AMOUNT,
+                    core.MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT
+                )
+            else:
+                data = core.get_response_data_without_result(
+                    core.STATUS_ONLINE_BANK_CHARGE_AMOUNT_LIMIT,
+                    core.MSG_ONLINE_BANK_CHARGE_AMOUNT_LIMIT
+                )
+            serializer = OneCardBalanceSerializer(data)
+            return Response(serializer.data)

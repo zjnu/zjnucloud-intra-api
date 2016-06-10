@@ -2,6 +2,7 @@ from collections import OrderedDict
 import random
 import re
 import base64
+import decimal
 
 from lxml import etree
 import requests
@@ -27,6 +28,7 @@ STATUS_EXCEED_ONECARD_BIND_TIMES_LIMIT = 101003
 STATUS_ONLINE_BANK_CHARGE_ERR_UNKNOWN = 101100
 STATUS_ONLINE_BANK_CHARGE_INVALID_AMOUNT = 101101
 STATUS_ONLINE_BANK_CHARGE_PAY_PASSWORD_WRONG = 101102
+STATUS_ONLINE_BANK_CHARGE_AMOUNT_LIMIT = 101103
 
 # Messages
 MSG_SUCCESS = 'success'
@@ -39,8 +41,13 @@ MSG_EXCEED_ONECARD_BIND_TIMES_LIMIT = '该账号已被绑定，请与我们联�
 MSG_ONLINE_BANK_CHARGE_SUCCESS = '转账申请成功，到账可能会有延迟，请耐心等待！'
 MSG_ONLINE_BANK_CHARGE_ERR_UNKNOWN = '未知错误'
 MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT = '非法的充值金额，请重新输入！'
-MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT_ZERO = '充值金额不能为0！'
+MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT_ZERO = '充值金额必须大于0！'
 MSG_ONLINE_BANK_CHARGE_PAY_PASSWORD_WRONG = '交易密码错误，请重新输入！'
+MSG_ONLINE_BANK_CHARGE_AMOUNT_LIMIT = '由于安全原因，充值金额不得超过1000元！'
+
+# Limits
+ONECARD_USER_LIMIT = 1
+ONECARD_CHARGE_AMOUNT_LIMIT = 1000
 
 
 def init(username, password, usertype='卡户'):
@@ -82,6 +89,14 @@ def gen_header_referer_online_bank():
         'Pragma': 'no-cache',
     })
     return header
+
+
+def get_response_data_without_result(code='404', message=''):
+        data = OrderedDict()
+        data['code'] = code
+        data['message'] = message
+        data['result'] = None
+        return data
 
 
 class Session(requests.Session):
@@ -185,8 +200,8 @@ class OneCardBase:
         except OneCardUser.DoesNotExist:
             return None
 
-    def _append_error_response_data(self, status, message):
-        self.response_data['code'] = status
+    def _append_error_response_data(self, code, message):
+        self.response_data['code'] = code
         self.response_data['message'] = message
         self.response_data['result'] = None
 
@@ -263,10 +278,9 @@ class OneCardBalance(OneCardBase):
 
     def charge(self, amount, pay_password):
         if self.code == STATUS_SUCCESS:
-            # Must the __VIEWSTATE and __EVENTVALIDATION first
+            # Must get __VIEWSTATE and __EVENTVALIDATION first
             html = self.session.get(URL_ONLINE_BANK_CHARGE, headers=gen_header_referer_is_logged_in(True))
             __viewstate, __eventvalidation = self.parse_charge_extras(html.content.decode('gbk'))
-
             data = {
                 '__VIEWSTATE': __viewstate,
                 '__EVENTVALIDATION': __eventvalidation,
@@ -281,8 +295,25 @@ class OneCardBalance(OneCardBase):
                 self.parse_charge(charge_result.content.decode('gbk'))
                 # Log out
                 self.session.logout()
-                print('Finish online bank charge, amount: ' + amount)
         return self.response_data
+
+    @staticmethod
+    def check_amount(amount):
+        """
+        Check and validate the charge amount
+        :param amount: in str, float or decimal
+        :return: Boolean, Number
+        """
+        try:
+            if amount.strip().isnumeric():
+                n = round(decimal.Decimal(amount.strip()), 2)
+                if n < ONECARD_CHARGE_AMOUNT_LIMIT:
+                    return True, n
+                else:
+                    return False, n
+        except:
+            pass
+        return False, None
 
     def parse_charge_extras(self, content):
         selector = etree.HTML(content)
@@ -302,6 +333,11 @@ class OneCardBalance(OneCardBase):
                 MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT
             )
         elif content.find('请输入充值金额') != -1:
+            self._append_error_response_data(
+                STATUS_ONLINE_BANK_CHARGE_INVALID_AMOUNT,
+                MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT_ZERO
+            )
+        elif content.find('缴费金额必须大于0') != -1:
             self._append_error_response_data(
                 STATUS_ONLINE_BANK_CHARGE_INVALID_AMOUNT,
                 MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT_ZERO
