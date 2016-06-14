@@ -82,7 +82,7 @@ class OneCardAccountAdapter:
         """
         try:
             onecard_user = OneCardUser.objects.get(username=data['username'])
-            bmob_user = onecard_user.bmobusers.get(pk=data['bmob'])
+            bmob_user = onecard_user.bmobusers.get(bmob_user=data['bmob'])
             return True, onecard_user, bmob_user
         except ObjectDoesNotExist:
             return False, None, None
