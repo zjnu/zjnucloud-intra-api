@@ -3,8 +3,8 @@ from __future__ import unicode_literals
 
 from django.db import migrations, models
 import emis.models
-import datetime
 from django.conf import settings
+import datetime
 
 
 class Migration(migrations.Migration):
@@ -17,7 +17,8 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='EmisUser',
             fields=[
-                ('username', models.CharField(max_length=255, serialize=False, primary_key=True)),
+                ('id', models.IntegerField(auto_created=True, serialize=False, default=0, primary_key=True)),
+                ('username', models.CharField(max_length=191)),
                 ('created', models.DateTimeField(default=datetime.datetime.now)),
                 ('is_active', models.BooleanField(default=True)),
                 ('is_superuser', models.BooleanField(default=False)),
@@ -34,7 +35,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Token',
             fields=[
-                ('key', models.CharField(max_length=40, serialize=False, primary_key=True)),
+                ('key', models.CharField(serialize=False, primary_key=True, max_length=40)),
                 ('created', models.DateTimeField(auto_now_add=True)),
                 ('user', models.ForeignKey(related_name='emis_token', to=settings.AUTH_USER_MODEL)),
             ],

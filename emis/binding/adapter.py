@@ -91,7 +91,7 @@ class EmisAccountAdapter(object):
             emis_username = form.cleaned_data.get('username')
             emis_user = get_user_model().objects.get(username=emis_username)
             bmob_username = form.cleaned_data.get('bmob')
-            bmob_user = emis_user.bmobusers.get(pk=bmob_username)
+            bmob_user = emis_user.bmobusers.get(bmob_user=bmob_username)
             return True, emis_user, bmob_user
         except ObjectDoesNotExist:
             return False, None, None

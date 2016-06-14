@@ -61,7 +61,8 @@ class EmisUserManager(BaseUserManager):
 
 @python_2_unicode_compatible
 class EmisUser(models.Model):
-    username = models.CharField(primary_key=True, max_length=255,)
+    id = models.IntegerField(default=0, primary_key=True, auto_created=True)
+    username = models.CharField(max_length=191)
     # created = models.DateTimeField(auto_now_add=True)
     created = models.DateTimeField(default=datetime.datetime.now,)
     is_active = models.BooleanField(default=True,)
@@ -71,13 +72,16 @@ class EmisUser(models.Model):
 
     objects = EmisUserManager()
 
-    USERNAME_FIELD = 'username'
+    USERNAME_FIELD = 'id'
     REQUIRED_FIELDS = []
 
     class Meta:
         db_table = 'emis_user'
 
     def __str__(self):
+        return self.username
+
+    def __repr__(self):
         return self.username
 
     def is_authenticated(self):
@@ -94,8 +98,8 @@ class Token(models.Model):
     The EMIS authorization token model.
     """
     key = models.CharField(max_length=40, primary_key=True,)
-    user = models.ForeignKey(EmisUser, related_name='emis_token', to_field='username',)
-    created = models.DateTimeField(auto_now_add=True,)
+    user = models.ForeignKey(EmisUser, related_name='emis_token', to_field='id',)
+    created = models.DateTimeField(default=datetime.datetime.now,)
 
     class Meta:
         db_table = 'emis_auth_token'

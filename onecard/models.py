@@ -41,7 +41,8 @@ class OneCardUserManager(BaseUserManager):
 
 @python_2_unicode_compatible
 class OneCardUser(models.Model):
-    username = models.CharField(primary_key=True, max_length=255,)
+    id = models.IntegerField(default=0, primary_key=True, auto_created=True)
+    username = models.CharField(max_length=191,)
     password = models.CharField(default='', max_length=2048,)
     created = models.DateTimeField(default=datetime.datetime.now,)
     is_active = models.BooleanField(default=True,)
@@ -50,9 +51,6 @@ class OneCardUser(models.Model):
     bmobusers = models.ManyToManyField(BmobUser, db_table='onecard_user_bmobusers')
 
     objects = OneCardUserManager()
-
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = []
 
     class Meta:
         db_table = 'onecard_user'
@@ -69,10 +67,11 @@ class OneCardUser(models.Model):
 
 
 class OneCardCharge(models.Model):
-    code = models.IntegerField(default='')
+    id = models.IntegerField(default=0, primary_key=True, auto_created=True)
+    code = models.IntegerField()
     message = models.TextField(default='')
     result = models.SmallIntegerField(null=True)
-    user = models.ForeignKey(OneCardUser, related_name='charge_user', to_field='username')
+    user = models.ForeignKey(OneCardUser, related_name='charge_user', to_field='id')
     amount = models.TextField(default='', null=True)
     created = models.DateTimeField(auto_now_add=True)
 
@@ -86,9 +85,9 @@ class Token(models.Model):
     """
     The EMIS authorization token model.
     """
-    key = models.CharField(max_length=40, primary_key=True,)
-    user = models.ForeignKey(OneCardUser, related_name='onecard_token', to_field='username',)
-    created = models.DateTimeField(auto_now_add=True,)
+    key = models.CharField(max_length=191, primary_key=True,)
+    user = models.ForeignKey(OneCardUser, related_name='onecard_token', to_field='id',)
+    created = models.DateTimeField(default=datetime.datetime.now,)
 
     class Meta:
         db_table = 'onecard_auth_token'

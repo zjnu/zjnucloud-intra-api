@@ -97,26 +97,27 @@ WSGI_APPLICATION = 'zjnucloud_intra.wsgi.application'
 # https://docs.djangoproject.com/en/1.8/ref/settings/#databases
 
 DATABASES = {
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.sqlite3',
+    #     'NAME': os.path.join(BASE_DIR, 'db-prod.sqlite3'),
+    # },
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    },
-    'localhost': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'zjnucloud_intra',
         'USER': 'root',
         'PASSWORD': '{ddmax}',
         'HOST': 'localhost',
         'PORT': '3306',
+        'OPTIONS': {'charset': 'utf8mb4'},
     },
-    'bce': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'zjnucloud_intra',
-        'USER': 'ddmax',
-        'PASSWORD': '_ddmax_',
-        'HOST': 'mysql55.rdsmzm1d9i5apyx.rds.gz.baidubce.com',
-        'PORT': '3306',
-    }
+    # 'bce': {
+    #     'ENGINE': 'django.db.backends.mysql',
+    #     'NAME': 'zjnucloud_intra',
+    #     'USER': 'ddmax',
+    #     'PASSWORD': '_ddmax_',
+    #     'HOST': 'mysql55.rdsmzm1d9i5apyx.rds.gz.baidubce.com',
+    #     'PORT': '3306',
+    # }
 }
 
 # EMIS User Model
@@ -141,4 +142,5 @@ USE_TZ = False
 
 STATIC_URL = '/static/'
 
-# STATIC_ROOT = '/home/wwwroot/zjnucloud_intra/static/'
+# Uncomment following in production
+# STATIC_ROOT = '/opt/django/static/'

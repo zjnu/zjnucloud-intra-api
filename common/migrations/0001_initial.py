@@ -13,7 +13,8 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='BmobUser',
             fields=[
-                ('bmob_user', models.CharField(primary_key=True, serialize=False, max_length=255)),
+                ('id', models.IntegerField(serialize=False, auto_created=True, primary_key=True, default=0)),
+                ('bmob_user', models.CharField(max_length=191)),
                 ('count', models.IntegerField(default=0)),
             ],
             options={
