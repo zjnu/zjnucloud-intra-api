@@ -4,7 +4,6 @@ from django.utils.encoding import python_2_unicode_compatible
 
 @python_2_unicode_compatible
 class BmobUser(models.Model):
-    id = models.IntegerField(default=0, primary_key=True, auto_created=True)
     bmob_user = models.CharField(max_length=191)
     count = models.IntegerField(default=0)
 
