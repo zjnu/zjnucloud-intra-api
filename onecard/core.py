@@ -13,9 +13,14 @@ from onecard.models import OneCardUser
 # OneCard_URL
 URL_LOGIN = 'http://ykt.zjnu.edu.cn/'
 URL_MAIN = 'http://ykt.zjnu.edu.cn/Cardholder/Cardholder.aspx'
-URL_ACCOUNT_DETAIL = 'http://ykt.zjnu.edu.cn/Cardholder/AccInfo.aspx'
-URL_ACCOUNT_DETAIL_AVATAR = 'http://ykt.zjnu.edu.cn/Cardholder/ShowImage.aspx?AccNum='
-URL_ACCOUNT_BALANCE = 'http://ykt.zjnu.edu.cn/Cardholder/AccBalance.aspx'
+URL_ONECARD_DETAIL = 'http://ykt.zjnu.edu.cn/Cardholder/AccInfo.aspx'
+URL_ONECARD_DETAIL_AVATAR = 'http://ykt.zjnu.edu.cn/Cardholder/ShowImage.aspx?AccNum='
+URL_ONECARD_BALANCE = 'http://ykt.zjnu.edu.cn/Cardholder/AccBalance.aspx'
+URL_ONECARD_DAILY_TRANSACTIONS = 'http://ykt.zjnu.edu.cn/Cardholder/QueryCurrDetailFrame.aspx'
+URL_ONECARD_MONTHLY_TRANSACTIONS_DETAIL = 'http://ykt.zjnu.edu.cn/Cardholder/QueryhistoryDetail.aspx'
+URL_ONECARD_MONTHLY_TRANSACTIONS_DETAIL_FRAME = 'http://ykt.zjnu.edu.cn/Cardholder/QueryhistoryDetailFrame.aspx'
+URL_ONECARD_MONTHLY_TRANSACTIONS_POST = 'http://ykt.zjnu.edu.cn/Cardholder/Queryhistory.aspx'
+URL_ONECARD_TRANSACTIONS_REFERER = 'http://ykt.zjnu.edu.cn/Cardholder/QueryCurrDetail.aspx'
 URL_ONLINE_BANK_CHARGE = 'http://ykt.zjnu.edu.cn/Cardholder/Onlinebank.aspx'
 URL_ELECTRICITY_CHARGE = 'http://ykt.zjnu.edu.cn/Cardholder/SelfHelpElec.aspx'
 
@@ -58,12 +63,6 @@ ONECARD_USER_LIMIT = 1
 ONECARD_CHARGE_AMOUNT_LIMIT = 1000
 
 
-def init(username, password, usertype='卡户'):
-    session = Session(username, password, usertype)
-    status, message = session.login()
-    return session, status, message
-
-
 def gen_header_base():
     return {
         'Accept': 'text/html, application/xhtml+xml, image/jxr, */*',
@@ -85,7 +84,7 @@ def gen_header_referer_is_logged_in(logged_in=False):
 def gen_header_referer_account_detail():
     header = gen_header_base()
     header.update({
-        'Referer': URL_ACCOUNT_DETAIL,
+        'Referer': URL_ONECARD_DETAIL,
     })
     return header
 
@@ -95,6 +94,31 @@ def gen_header_referer_online_bank():
     header.update({
         'Referer': URL_ONLINE_BANK_CHARGE,
         'Pragma': 'no-cache',
+    })
+    return header
+
+
+def gen_header_referer_daily_transactions():
+    header = gen_header_base()
+    header.update({
+        'Referer': URL_ONECARD_TRANSACTIONS_REFERER,
+    })
+    return header
+
+
+def gen_header_referer_monthly_transactions_post_params():
+    header = gen_header_base()
+    header.update({
+        'Referer': URL_ONECARD_MONTHLY_TRANSACTIONS_POST,
+        'Pragma': 'no-cache',
+    })
+    return header
+
+
+def gen_header_referer_monthly_transactions_get():
+    header = gen_header_base()
+    header.update({
+        'Referer': URL_ONECARD_TRANSACTIONS_REFERER,
     })
     return header
 
@@ -140,7 +164,7 @@ class Session(requests.Session):
         }
 
         # Perform login
-        print('Perform login as username: ' + self.username + ', password: ' + self.password)
+        print('OneCard login as username: ' + self.username + ', password: ' + self.password)
         result = self.post(URL_LOGIN, data=data, headers=gen_header_referer_is_logged_in())
         self.result_code = result.status_code
         result_content = result.content.decode('gbk')
@@ -150,12 +174,19 @@ class Session(requests.Session):
         status, message = self.check_status(result_content)
         return status, message
 
-    def parse_body_extras(self, content):
+    @staticmethod
+    def parse_body_extras(content):
         selector = etree.HTML(content)
         __viewstate = selector.xpath(r'//*[@name="__VIEWSTATE"]')
         __eventvalidation = selector.xpath(r'//*[@name="__EVENTVALIDATION"]')
         if __viewstate and __eventvalidation:
             return __viewstate[0].attrib['value'], __eventvalidation[0].attrib['value']
+        elif __viewstate:
+            return __viewstate[0].attrib['value']
+        elif __eventvalidation:
+            return __eventvalidation[0].attrib['value']
+        else:
+            return None
 
     def get_body_extras(self):
         return self.__viewstate, self.__eventvalidation
@@ -191,17 +222,28 @@ class Session(requests.Session):
 
 class OneCardBase:
 
-    def __init__(self, username, password=None):
-        self.response_data = OrderedDict()
-        if not password:
-            password = self.__get_user_password(username)
-        # Log in
-        self.session, self.code, self.message = init(username, password)
-        # Append status and message
-        self.response_data['code'] = self.code
-        self.response_data['message'] = self.message
+    def __init__(self, username, password):
+        if username:
+            self.response_data = OrderedDict()
+            if not password:
+                password = self.__get_user_password(username)
+            # Log in
+            self.session, self.code, self.message = self.init(username, password)
+            # Append status and message
+            self.response_data['code'] = self.code
+            self.response_data['message'] = self.message
+        else:
+            # If username is not provided then don't log in
+            pass
 
-    def __get_user_password(self, username):
+    @staticmethod
+    def init(username, password, usertype='卡户'):
+        session = Session(username, password, usertype)
+        status, message = session.login()
+        return session, status, message
+
+    @staticmethod
+    def __get_user_password(username):
         try:
             onecard_user = OneCardUser.objects.get(username=username)
             return onecard_user.password
@@ -216,12 +258,12 @@ class OneCardBase:
 
 class OneCardAccountDetail(OneCardBase):
 
-    def __init__(self, username, password=None):
+    def __init__(self, username=None, password=None):
         super().__init__(username, password)
 
     def get_detail(self):
         if self.code == STATUS_SUCCESS:
-            detail_html = self.session.get(URL_ACCOUNT_DETAIL, headers=gen_header_referer_is_logged_in(True))
+            detail_html = self.session.get(URL_ONECARD_DETAIL, headers=gen_header_referer_is_logged_in(True))
             if detail_html:
                 self.parse(detail_html.content.decode('gbk'), True)
                 # Log out
@@ -246,7 +288,7 @@ class OneCardAccountDetail(OneCardBase):
         # Get avatar
         if has_avatar:
             avatar_raw = self.session.get(
-                URL_ACCOUNT_DETAIL_AVATAR + result.get('account'),
+                URL_ONECARD_DETAIL_AVATAR + result.get('account'),
                 headers=gen_header_referer_account_detail()
             )
             if avatar_raw:
@@ -262,12 +304,14 @@ class OneCardAccountDetail(OneCardBase):
 
 class OneCardBalance(OneCardBase):
 
-    def __init__(self, username, password=None):
+    def __init__(self, username=None, password=None):
         super().__init__(username, password)
+        self.username = username
+        self.password = password
 
     def get_balance(self):
         if self.code == STATUS_SUCCESS:
-            balance_html = self.session.get(URL_ACCOUNT_BALANCE, headers=gen_header_referer_is_logged_in(True))
+            balance_html = self.session.get(URL_ONECARD_BALANCE, headers=gen_header_referer_is_logged_in(True))
             # Parse & extract the balance
             if balance_html:
                 self.parse_balance(balance_html.content.decode('gbk'))
@@ -288,7 +332,7 @@ class OneCardBalance(OneCardBase):
         if self.code == STATUS_SUCCESS:
             # Must get __VIEWSTATE and __EVENTVALIDATION first
             html = self.session.get(URL_ONLINE_BANK_CHARGE, headers=gen_header_referer_is_logged_in(True))
-            __viewstate, __eventvalidation = self.parse_charge_extras(html.content.decode('gbk'))
+            __viewstate, __eventvalidation = Session.parse_body_extras(html.content.decode('gbk'))
             data = {
                 '__VIEWSTATE': __viewstate,
                 '__EVENTVALIDATION': __eventvalidation,
@@ -301,6 +345,7 @@ class OneCardBalance(OneCardBase):
                                               headers=gen_header_referer_online_bank())
             if charge_result:
                 self.parse_charge(charge_result.content.decode('gbk'))
+                # TODO: Send push message
                 # Log out
                 self.session.logout()
         return self.response_data
@@ -318,16 +363,9 @@ class OneCardBalance(OneCardBase):
                 return True, n
             else:
                 return False, n
-        except:
-            pass
+        except Exception as e:
+            print(e)
         return False, None
-
-    def parse_charge_extras(self, content):
-        selector = etree.HTML(content)
-        __viewstate = selector.xpath(r'//*[@name="__VIEWSTATE"]')
-        __eventvalidation = selector.xpath(r'//*[@name="__EVENTVALIDATION"]')
-        if __viewstate and __eventvalidation:
-            return __viewstate[0].attrib['value'], __eventvalidation[0].attrib['value']
 
     def parse_charge(self, content):
         if content.find('转账申请成功') != -1:
@@ -359,3 +397,75 @@ class OneCardBalance(OneCardBase):
                 STATUS_ONLINE_BANK_CHARGE_ERR_UNKNOWN,
                 MSG_ONLINE_BANK_CHARGE_ERR_UNKNOWN
             )
+
+
+class OneCardTransactions(OneCardBase):
+
+    def __init__(self, username, password=None):
+        super().__init__(username, password)
+
+    def get_daily(self):
+        if self.code == STATUS_SUCCESS:
+            content_html = self.session.get(URL_ONECARD_DAILY_TRANSACTIONS,
+                                            headers=gen_header_referer_daily_transactions())
+            # Parse & extract the balance
+            if content_html:
+                self.parse_all_data(content_html.content.decode('gbk'))
+                # Log out
+                self.session.logout()
+        return self.response_data
+
+    def get_monthly(self, year, month):
+        if self.code == STATUS_SUCCESS:
+            # Must get __VIEWSTATE first
+            content_html = self.session.get(URL_ONECARD_MONTHLY_TRANSACTIONS_POST,
+                                            headers=gen_header_referer_monthly_transactions_get())
+            __viewstate = Session.parse_body_extras(content_html.content.decode('gbk'))
+            data = {
+                '__VIEWSTATE': __viewstate,
+                'ddlYear': year,
+                'ddlMonth': month,
+                'txtMonth': month,
+                'ImageButton1.x': random.randint(0, 100),
+                'ImageButton1.y': random.randint(0, 100),
+            }
+            self.session.post(URL_ONECARD_MONTHLY_TRANSACTIONS_POST,
+                              data=data,
+                              headers=gen_header_referer_monthly_transactions_post_params())
+
+            content_html = self.session.get(URL_ONECARD_MONTHLY_TRANSACTIONS_DETAIL_FRAME, headers=gen_header_base())
+
+            # Parse & extract the balance
+            if content_html:
+                self.parse_all_data(content_html.content.decode('gbk'))
+                # Log out
+                self.session.logout()
+        return self.response_data
+
+    def parse_all_data(self, content):
+        if content.find('没有检索到符合的记录') != -1:
+            self.response_data['result'] = {}
+        elif content.find('交易记录') != -1:
+            result = list()
+            selector = etree.HTML(content)
+            records = selector.xpath(r'//table/tr')
+            for record in records[-4:3:-1]:
+                fields = record.xpath(r'td/text()')
+                result.append(self.append_transaction(fields))
+            self.response_data['result'] = result
+
+    @staticmethod
+    def append_transaction(fields):
+        transaction_data = OrderedDict()
+        transaction_data['transactionId'] = str(fields[0])
+        transaction_data['account'] = str(fields[1])
+        transaction_data['cardType'] = str(fields[2])
+        transaction_data['transactionType'] = str(fields[3])
+        transaction_data['businessName'] = str(fields[4])
+        transaction_data['businessSite'] = str(fields[5])
+        transaction_data['terminalNo'] = str(fields[6])
+        transaction_data['amount'] = str(fields[7])
+        transaction_data['date'] = str(fields[8])
+        transaction_data['walletName'] = str(fields[9])
+        transaction_data['balance'] = str(fields[10])
+        return transaction_data

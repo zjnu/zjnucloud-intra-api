@@ -41,7 +41,6 @@ class OneCardUserManager(BaseUserManager):
 
 @python_2_unicode_compatible
 class OneCardUser(models.Model):
-    id = models.IntegerField(default=0, primary_key=True, auto_created=True)
     username = models.CharField(max_length=191,)
     password = models.CharField(default='', max_length=2048,)
     created = models.DateTimeField(default=datetime.datetime.now,)
@@ -67,7 +66,6 @@ class OneCardUser(models.Model):
 
 
 class OneCardCharge(models.Model):
-    id = models.IntegerField(default=0, primary_key=True, auto_created=True)
     code = models.IntegerField()
     message = models.TextField(default='')
     result = models.SmallIntegerField(null=True)

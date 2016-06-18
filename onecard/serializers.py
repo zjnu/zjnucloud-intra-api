@@ -57,6 +57,14 @@ class OneCardChargeSerializer(serializers.Serializer):
         return ret
 
 
+class OneCardDailyTransactionsSerializer(BaseOneCardSerializer):
+    pass
+
+
+class OneCardMonthlyTransactionsSerializer(BaseOneCardSerializer):
+    pass
+
+
 class TokenSerializer(serializers.ModelSerializer):
     """
     Serializer for Token model in OneCard

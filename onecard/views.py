@@ -14,7 +14,7 @@ from onecard.core import STATUS_SUCCESS, STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT, \
     MSG_EXCEED_BMOB_BIND_TIMES_LIMIT, MSG_EXCEED_ONECARD_BIND_TIMES_LIMIT
 from onecard.models import Token
 from onecard.serializers import BaseOneCardSerializer, BindingSerializer, OneCardDetailsSerializer, \
-    OneCardChargeSerializer
+    OneCardChargeSerializer, OneCardDailyTransactionsSerializer, OneCardMonthlyTransactionsSerializer
 
 CODE_PARAMS_ERROR = '400'
 MESSAGE_PARAMS_ERROR = '请求参数错误，请检查'
@@ -181,9 +181,6 @@ class OneCardDetailsList(GenericAPIView):
     serializer_class = OneCardDetailsSerializer
 
     def get(self, request, username, format=None):
-        """
-        Get account balance
-        """
         data = core.OneCardAccountDetail(username).get_detail()
         serializer = BaseOneCardSerializer(data)
         return Response(serializer.data)
@@ -240,3 +237,50 @@ class OneCardBalanceList(GenericAPIView):
         else:
             status_code = status.HTTP_400_BAD_REQUEST
         return Response(serializer.data, status=status_code)
+
+
+class OneCardDailyTransactionsList(GenericAPIView):
+    """
+    Get one-day transactions of OneCard
+    """
+    allowed_methods = ('GET',)
+    authentication_classes = (OneCardTokenAuthentication,)
+    serializer_class = OneCardDailyTransactionsSerializer
+
+    def get(self, request, username, format=None):
+        data = core.OneCardTransactions(username).get_daily()
+        serializer = BaseOneCardSerializer(data)
+        return Response(serializer.data)
+
+
+class OneCardMonthlyTransactionsList(GenericAPIView):
+    """
+    Get one-month of transactions of OneCard
+    """
+    allowed_methods = ('GET',)
+    authentication_classes = (OneCardTokenAuthentication,)
+    serializer_class = OneCardMonthlyTransactionsSerializer
+
+    def get(self, request, username, year, month, format=None):
+        if self.ensure_valid_number(year, month):
+            data = core.OneCardTransactions(username).get_monthly(year, month)
+            serializer = BaseOneCardSerializer(data)
+            return Response(serializer.data)
+        else:
+            return self.get_response_with_params_errors()
+
+    def ensure_valid_number(self, year, month):
+        try:
+            if int(year) >= 2015:
+                if 1 <= int(month) <= 12:
+                    return True
+            return False
+        except ValueError:
+            return False
+
+    def get_response_with_params_errors(self):
+        return Response({
+            'code': CODE_PARAMS_ERROR,
+            'message': MESSAGE_PARAMS_ERROR,
+            'result': None,
+        }, status=status.HTTP_400_BAD_REQUEST)
