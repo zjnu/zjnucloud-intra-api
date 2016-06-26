@@ -78,6 +78,15 @@ class OneCardCharge(models.Model):
         ordering = ('created',)
 
 
+class OneCardElectricityBuildings(models.Model):
+    building = models.CharField(default='', max_length=191,)
+    room = models.CharField(default='', max_length=191,)
+    value = models.CharField(default='', max_length=32,)
+
+    class Meta:
+        db_table = 'dict_onecard_electricity_buildings'
+
+
 @python_2_unicode_compatible
 class Token(models.Model):
     """

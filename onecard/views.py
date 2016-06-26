@@ -14,7 +14,8 @@ from onecard.core import STATUS_SUCCESS, STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT, \
     MSG_EXCEED_BMOB_BIND_TIMES_LIMIT, MSG_EXCEED_ONECARD_BIND_TIMES_LIMIT
 from onecard.models import Token
 from onecard.serializers import BaseOneCardSerializer, BindingSerializer, OneCardDetailsSerializer, \
-    OneCardChargeSerializer, OneCardDailyTransactionsSerializer, OneCardMonthlyTransactionsSerializer
+    OneCardChargeSerializer, OneCardDailyTransactionsSerializer, OneCardMonthlyTransactionsSerializer, \
+    OneCardElectricitySerializer
 
 CODE_PARAMS_ERROR = '400'
 MESSAGE_PARAMS_ERROR = '请求参数错误，请检查'
@@ -284,3 +285,28 @@ class OneCardMonthlyTransactionsList(GenericAPIView):
             'message': MESSAGE_PARAMS_ERROR,
             'result': None,
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OneCardElectricityView(GenericAPIView):
+    allowed_methods = ('GET', 'POST')
+    authentication_classes = (OneCardTokenAuthentication,)
+    serializer_class = OneCardElectricitySerializer
+
+    def get(self, request, username, building=None, room=None, format=None):
+        if building:
+            if building and room:
+                data = core.OneCardElectricity(username).get_room_info(building, room)
+                return Response(data)
+            else:
+                # TODO: List rooms in the building
+                pass
+        else:
+            # TODO: List all buildings and rooms
+            pass
+        return Response({})
+
+    def post(self, request, username, building, room, format=None):
+        if building is None:
+            # Find all buildings
+            data = core.OneCardElectricity(username).get_and_save_buildings()
+            return Response(data)

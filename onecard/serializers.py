@@ -5,13 +5,13 @@ from rest_framework import serializers
 from onecard.models import Token, OneCardCharge, OneCardUser
 
 
-class BaseOneCardSerializer(serializers.BaseSerializer):
+class BaseOneCardSerializer(serializers.Serializer):
 
     def to_representation(self, data):
         return data
 
 
-class BindingSerializer(serializers.Serializer):
+class BindingSerializer(BaseOneCardSerializer):
     username = serializers.CharField(max_length=255)
     password = serializers.CharField(max_length=2048)
     bmob = serializers.CharField(max_length=255)
@@ -21,7 +21,7 @@ class OneCardDetailsSerializer(BaseOneCardSerializer):
     pass
 
 
-class OneCardChargeSerializer(serializers.Serializer):
+class OneCardChargeSerializer(BaseOneCardSerializer):
     """
     Serializer for OneCardCharge model when charge
     """
@@ -63,6 +63,46 @@ class OneCardDailyTransactionsSerializer(BaseOneCardSerializer):
 
 class OneCardMonthlyTransactionsSerializer(BaseOneCardSerializer):
     pass
+
+
+class OneCardElectricitySerializer(BaseOneCardSerializer):
+    pass
+
+
+class OneCardElectricityChargeSerializer(BaseOneCardSerializer):
+    """
+    Serializer for OneCardElectricityCharge model when charge electricity
+    """
+    amount = serializers.CharField()
+    payPassword = serializers.CharField()
+
+    def create(self, validated_data):
+        return OneCardCharge.objects.create(**validated_data)
+
+    def to_internal_value(self, data):
+        code = data.get('code')
+        message = data.get('message')
+        result = data.get('result')
+        username = data.get('username')
+        amount = data.get('amount')
+
+        user = OneCardUser.objects.get(username=username)
+        return {
+            'code': code,
+            'message': message,
+            'result': result,
+            'user': user,
+            'amount': amount,
+        }
+
+    def to_representation(self, instance):
+        ret = OrderedDict()
+        ret['code'] = instance.code
+        ret['message'] = instance.message
+        ret['result'] = instance.result
+        ret['user'] = instance.user.username
+        ret['amount'] = instance.amount
+        return ret
 
 
 class TokenSerializer(serializers.ModelSerializer):

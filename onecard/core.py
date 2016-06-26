@@ -7,25 +7,27 @@ import decimal
 from lxml import etree
 import requests
 
-from onecard.models import OneCardUser
+from onecard.models import OneCardUser, OneCardElectricityBuildings
 
 
 # OneCard_URL
 URL_LOGIN = 'http://ykt.zjnu.edu.cn/'
 URL_MAIN = 'http://ykt.zjnu.edu.cn/Cardholder/Cardholder.aspx'
-URL_ONECARD_DETAIL = 'http://ykt.zjnu.edu.cn/Cardholder/AccInfo.aspx'
-URL_ONECARD_DETAIL_AVATAR = 'http://ykt.zjnu.edu.cn/Cardholder/ShowImage.aspx?AccNum='
-URL_ONECARD_BALANCE = 'http://ykt.zjnu.edu.cn/Cardholder/AccBalance.aspx'
-URL_ONECARD_DAILY_TRANSACTIONS = 'http://ykt.zjnu.edu.cn/Cardholder/QueryCurrDetailFrame.aspx'
-URL_ONECARD_MONTHLY_TRANSACTIONS_DETAIL = 'http://ykt.zjnu.edu.cn/Cardholder/QueryhistoryDetail.aspx'
-URL_ONECARD_MONTHLY_TRANSACTIONS_DETAIL_FRAME = 'http://ykt.zjnu.edu.cn/Cardholder/QueryhistoryDetailFrame.aspx'
-URL_ONECARD_MONTHLY_TRANSACTIONS_POST = 'http://ykt.zjnu.edu.cn/Cardholder/Queryhistory.aspx'
-URL_ONECARD_TRANSACTIONS_REFERER = 'http://ykt.zjnu.edu.cn/Cardholder/QueryCurrDetail.aspx'
+URL_DETAIL = 'http://ykt.zjnu.edu.cn/Cardholder/AccInfo.aspx'
+URL_DETAIL_AVATAR = 'http://ykt.zjnu.edu.cn/Cardholder/ShowImage.aspx?AccNum='
+URL_BALANCE = 'http://ykt.zjnu.edu.cn/Cardholder/AccBalance.aspx'
+URL_DAILY_TRANSACTIONS = 'http://ykt.zjnu.edu.cn/Cardholder/QueryCurrDetailFrame.aspx'
+URL_MONTHLY_TRANSACTIONS_DETAIL = 'http://ykt.zjnu.edu.cn/Cardholder/QueryhistoryDetail.aspx'
+URL_MONTHLY_TRANSACTIONS_DETAIL_FRAME = 'http://ykt.zjnu.edu.cn/Cardholder/QueryhistoryDetailFrame.aspx'
+URL_MONTHLY_TRANSACTIONS_POST = 'http://ykt.zjnu.edu.cn/Cardholder/Queryhistory.aspx'
+URL_TRANSACTIONS_REFERER = 'http://ykt.zjnu.edu.cn/Cardholder/QueryCurrDetail.aspx'
 URL_ONLINE_BANK_CHARGE = 'http://ykt.zjnu.edu.cn/Cardholder/Onlinebank.aspx'
-URL_ELECTRICITY_CHARGE = 'http://ykt.zjnu.edu.cn/Cardholder/SelfHelpElec.aspx'
+URL_ELECTRICITY_GET_BUILDINGS = 'http://ykt.zjnu.edu.cn/Cardholder/SelfHelpElec.aspx'
+URL_ELECTRICITY_PAY = 'http://ykt.zjnu.edu.cn/Cardholder/SelfHelpPay.aspx'
 
 # Session status code
 STATUS_SUCCESS = 200
+STATUS_PAGE_NOT_AVAILABLE = 304
 STATUS_LOGIN_FAILED = 403
 STATUS_ERR_UNKNOWN = 101000
 STATUS_ERR_PARAM = 101001
@@ -36,9 +38,12 @@ STATUS_ONLINE_BANK_CHARGE_INVALID_AMOUNT = 101101
 STATUS_ONLINE_BANK_CHARGE_PAY_PASSWORD_WRONG = 101102
 STATUS_ONLINE_BANK_CHARGE_AMOUNT_LIMIT = 101103
 STATUS_ONLINE_BANK_CHARGE_ERR_UNKNOWN = 101199
+STATUS_ELECTRICITY_BUILDING_NOT_FOUND = 101200
+STATUS_ELECTRICITY_GET_ROOM_INFO_FAILED = 101201
 
 # Messages
 MSG_SUCCESS = 'success'
+MSG_PAGE_NOT_AVAILABLE = '一卡通网站遇到了技术问题，暂时不可用'
 MSG_LOGIN_FAILED = '登录失败，用户名或密码错误'
 MSG_ERR_UNKNOWN = '登录失败，未知错误'
 MSG_ERR_PARAM = '参数错误'
@@ -51,6 +56,9 @@ MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT = '非法的充值金额，请重新输入
 MSG_ONLINE_BANK_CHARGE_INVALID_AMOUNT_ZERO = '充值金额必须大于0！'
 MSG_ONLINE_BANK_CHARGE_PAY_PASSWORD_WRONG = '交易密码错误，请重新输入！'
 MSG_ONLINE_BANK_CHARGE_AMOUNT_LIMIT = '由于安全原因，充值金额不得超过1000元！'
+MSG_ELECTRICITY_BUILDINGS_CREATED = '所有楼房已获取'
+MSG_ELECTRICITY_BUILDINGS_NOT_FOUND = '未找到对应房间号'
+MSG_ELECTRICITY_GET_ROOM_INFO_FAILED = '未能获取房间电量信息'
 
 # Results
 # Stands for charge in process
@@ -84,7 +92,7 @@ def gen_header_referer_is_logged_in(logged_in=False):
 def gen_header_referer_account_detail():
     header = gen_header_base()
     header.update({
-        'Referer': URL_ONECARD_DETAIL,
+        'Referer': URL_DETAIL,
     })
     return header
 
@@ -101,7 +109,7 @@ def gen_header_referer_online_bank():
 def gen_header_referer_daily_transactions():
     header = gen_header_base()
     header.update({
-        'Referer': URL_ONECARD_TRANSACTIONS_REFERER,
+        'Referer': URL_TRANSACTIONS_REFERER,
     })
     return header
 
@@ -109,7 +117,7 @@ def gen_header_referer_daily_transactions():
 def gen_header_referer_monthly_transactions_post_params():
     header = gen_header_base()
     header.update({
-        'Referer': URL_ONECARD_MONTHLY_TRANSACTIONS_POST,
+        'Referer': URL_MONTHLY_TRANSACTIONS_POST,
         'Pragma': 'no-cache',
     })
     return header
@@ -118,7 +126,18 @@ def gen_header_referer_monthly_transactions_post_params():
 def gen_header_referer_monthly_transactions_get():
     header = gen_header_base()
     header.update({
-        'Referer': URL_ONECARD_TRANSACTIONS_REFERER,
+        'Referer': URL_TRANSACTIONS_REFERER,
+    })
+    return header
+
+
+def gen_header_referer_electricity():
+    header = gen_header_base()
+    header.update({
+        'Accept': 'image/gif, image/jpeg, image/pjpeg, application/x-ms-application, '
+                  'application/xaml+xml, application/x-ms-xbap, */*',
+        'Referer': URL_ELECTRICITY_GET_BUILDINGS,
+        'Pragma': 'no-cache',
     })
     return header
 
@@ -148,6 +167,9 @@ class Session(requests.Session):
         html = self.get(URL_LOGIN, headers=gen_header_base())
         html.encoding = 'gbk'
         html_content = html.content.decode('gbk')
+        status, message = self.check_status(html_content, False)
+        if status != STATUS_SUCCESS:
+            return status, message
 
         # Post data
         __viewstate, __eventvalidation = self.parse_body_extras(html_content)
@@ -199,15 +221,24 @@ class Session(requests.Session):
             captcha += re.search(r'(\d)', each.attrib['src'], re.S).group(0)
         return captcha
 
-    def check_status(self, content):
-        if self.result_code == 200:
+    def check_status(self, content, is_login=True):
+        """
+        Check web page status by parsing the response content
+        """
+
+        if is_login and self.result_code == 200:
             if content.find('学工号') != -1:
                 # Login success!
                 return STATUS_SUCCESS, MSG_SUCCESS
             else:
                 return STATUS_LOGIN_FAILED, MSG_LOGIN_FAILED
-        print('OneCard Login failed for unknown reason!')
-        return STATUS_ERR_UNKNOWN, MSG_ERR_UNKNOWN
+        else:
+            if content.find('登录号') != -1:
+                return STATUS_SUCCESS, MSG_SUCCESS
+            elif content.find('您要查看的页当前不可用。找不到服务器或网站遇到技术问题。') != -1:
+                return STATUS_PAGE_NOT_AVAILABLE, MSG_PAGE_NOT_AVAILABLE
+            else:
+                return STATUS_ERR_UNKNOWN, MSG_ERR_UNKNOWN
 
     def logout(self,):
         data = {
@@ -222,7 +253,7 @@ class Session(requests.Session):
 
 class OneCardBase:
 
-    def __init__(self, username, password):
+    def __init__(self, username=None, password=None):
         if username:
             self.response_data = OrderedDict()
             if not password:
@@ -232,9 +263,7 @@ class OneCardBase:
             # Append status and message
             self.response_data['code'] = self.code
             self.response_data['message'] = self.message
-        else:
-            # If username is not provided then don't log in
-            pass
+            self.response_data['result'] = None
 
     @staticmethod
     def init(username, password, usertype='卡户'):
@@ -258,12 +287,9 @@ class OneCardBase:
 
 class OneCardAccountDetail(OneCardBase):
 
-    def __init__(self, username=None, password=None):
-        super().__init__(username, password)
-
     def get_detail(self):
         if self.code == STATUS_SUCCESS:
-            detail_html = self.session.get(URL_ONECARD_DETAIL, headers=gen_header_referer_is_logged_in(True))
+            detail_html = self.session.get(URL_DETAIL, headers=gen_header_referer_is_logged_in(True))
             if detail_html:
                 self.parse(detail_html.content.decode('gbk'), True)
                 # Log out
@@ -288,7 +314,7 @@ class OneCardAccountDetail(OneCardBase):
         # Get avatar
         if has_avatar:
             avatar_raw = self.session.get(
-                URL_ONECARD_DETAIL_AVATAR + result.get('account'),
+                URL_DETAIL_AVATAR + result.get('account'),
                 headers=gen_header_referer_account_detail()
             )
             if avatar_raw:
@@ -311,7 +337,7 @@ class OneCardBalance(OneCardBase):
 
     def get_balance(self):
         if self.code == STATUS_SUCCESS:
-            balance_html = self.session.get(URL_ONECARD_BALANCE, headers=gen_header_referer_is_logged_in(True))
+            balance_html = self.session.get(URL_BALANCE, headers=gen_header_referer_is_logged_in(True))
             # Parse & extract the balance
             if balance_html:
                 self.parse_balance(balance_html.content.decode('gbk'))
@@ -401,12 +427,9 @@ class OneCardBalance(OneCardBase):
 
 class OneCardTransactions(OneCardBase):
 
-    def __init__(self, username, password=None):
-        super().__init__(username, password)
-
     def get_daily(self):
         if self.code == STATUS_SUCCESS:
-            content_html = self.session.get(URL_ONECARD_DAILY_TRANSACTIONS,
+            content_html = self.session.get(URL_DAILY_TRANSACTIONS,
                                             headers=gen_header_referer_daily_transactions())
             # Parse & extract the balance
             if content_html:
@@ -418,7 +441,7 @@ class OneCardTransactions(OneCardBase):
     def get_monthly(self, year, month):
         if self.code == STATUS_SUCCESS:
             # Must get __VIEWSTATE first
-            content_html = self.session.get(URL_ONECARD_MONTHLY_TRANSACTIONS_POST,
+            content_html = self.session.get(URL_MONTHLY_TRANSACTIONS_POST,
                                             headers=gen_header_referer_monthly_transactions_get())
             __viewstate = Session.parse_body_extras(content_html.content.decode('gbk'))
             data = {
@@ -429,11 +452,11 @@ class OneCardTransactions(OneCardBase):
                 'ImageButton1.x': random.randint(0, 100),
                 'ImageButton1.y': random.randint(0, 100),
             }
-            self.session.post(URL_ONECARD_MONTHLY_TRANSACTIONS_POST,
+            self.session.post(URL_MONTHLY_TRANSACTIONS_POST,
                               data=data,
                               headers=gen_header_referer_monthly_transactions_post_params())
 
-            content_html = self.session.get(URL_ONECARD_MONTHLY_TRANSACTIONS_DETAIL_FRAME, headers=gen_header_base())
+            content_html = self.session.get(URL_MONTHLY_TRANSACTIONS_DETAIL_FRAME, headers=gen_header_base())
 
             # Parse & extract the balance
             if content_html:
@@ -469,3 +492,103 @@ class OneCardTransactions(OneCardBase):
         transaction_data['walletName'] = str(fields[9])
         transaction_data['balance'] = str(fields[10])
         return transaction_data
+
+
+class OneCardElectricity(OneCardBase):
+
+    def get_and_save_buildings(self):
+        res = self.session.get(URL_ELECTRICITY_GET_BUILDINGS, headers=gen_header_base())
+        content = res.content.decode('gbk')
+        # Get __VIEWSTATE, __EVENTVALIDATION
+        __viewstate, __eventvalidation = Session.parse_body_extras(content)
+
+        selector = etree.HTML(content)
+        buildings = selector.xpath(r'//select[@name="lsArea"]/option/text()')
+
+        # Bulk create if no data in the table to improve performance
+        is_empty_table = True if not OneCardElectricityBuildings.objects.all() else False
+        if is_empty_table:
+            room_objects = list()
+
+        for index, building in enumerate(buildings):
+            data = {
+                'lsArea': building.encode('gbk'),
+                '__VIEWSTATE': __viewstate,
+                '__EVENTVALIDATION': __eventvalidation,
+                '__EVENTTARGET': 'lsArea',
+                '__smartNavPostBack': 'true',
+                '__EVENTARGUMENT': '',
+                '__LASTFOCUS': '',
+            }
+            res = self.session.post(URL_ELECTRICITY_GET_BUILDINGS,
+                                    headers=gen_header_referer_electricity(),
+                                    data=data)
+            content = res.content.decode('gbk')
+            # Save these for next request
+            __viewstate, __eventvalidation = Session.parse_body_extras(content)
+
+            selector = etree.HTML(content)
+            rooms = selector.xpath(r'//select[@name="lsRoom"]/option')
+
+            for room in rooms:
+                value = room.attrib['value']
+                text = room.text
+                if is_empty_table:
+                    room_objects.append(OneCardElectricityBuildings(building=building, room=text, value=value))
+                else:
+                    OneCardElectricityBuildings.objects.get_or_create(building=building, room=text, value=value)
+
+        # Do bulk_create
+        if is_empty_table:
+            OneCardElectricityBuildings.objects.bulk_create(room_objects)
+
+        self.response_data['message'] = MSG_ELECTRICITY_BUILDINGS_CREATED
+        self.response_data['result'] = None
+        return self.response_data
+
+    def get_room_info(self, building, room):
+        try:
+            _room = OneCardElectricityBuildings.objects.filter(building=building, room=room)[0]
+            if not self.__post_room_data(_room):
+                self.response_data['code'] = STATUS_SUCCESS
+                self.response_data['message'] = MSG_ELECTRICITY_GET_ROOM_INFO_FAILED
+                return self.response_data
+
+            res = self.session.get(URL_ELECTRICITY_PAY, headers=gen_header_referer_electricity())
+            content = res.content.decode('gbk')
+            self.parse_room_info(content)
+
+        except OneCardElectricityBuildings.DoesNotExist:
+            self._append_error_response_data(
+                    STATUS_ELECTRICITY_BUILDING_NOT_FOUND,
+                    MSG_ELECTRICITY_BUILDINGS_NOT_FOUND
+                )
+        return self.response_data
+
+    def parse_room_info(self, content):
+        selector = etree.HTML(content)
+        result = OrderedDict()
+        result['balance'] = selector.xpath(r'//*[@id="lblItem"]/text()')
+        self.response_data[result] = result
+
+    def __post_room_data(self, room_object):
+        # Get __VIEWSTATE and __EVENTVALIDATION first
+        html = self.session.get(URL_ELECTRICITY_GET_BUILDINGS, headers=gen_header_referer_electricity())
+        __viewstate, __eventvalidation = Session.parse_body_extras(html.content.decode('gbk'))
+
+        data = {
+                'lsArea': room_object.building.encode('gbk'),
+                'lsRoom': room_object.value.encode('gbk'),
+                '__EVENTTARGET': '',
+                '__EVENTARGUMENT': '',
+                '__LASTFOCUS': '',
+                '__VIEWSTATE': __viewstate,
+                '__EVENTVALIDATION': __eventvalidation,
+                '__smartNavPostBack': 'true',
+                'btnOK.x': random.randint(0, 100),
+                'btnOK.y': random.randint(0, 100),
+        }
+        res = self.session.post(URL_ELECTRICITY_GET_BUILDINGS, data=data,
+                                headers=gen_header_referer_electricity())
+        content = res.content.decode('gbk')
+        return content.find('/Cardholder/SelfHelpPay.aspx') != -1
