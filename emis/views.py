@@ -1,6 +1,8 @@
-from datetime import datetime
+import datetime
+import json
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from emis.models import EmisUser
 
 from emis.serializers import BaseEmisSerializer
 import emis.core as core
@@ -13,9 +15,21 @@ class ScoreList(APIView):
         """
         List all scores of user
         """
-        data = core.Score(request).get_total_score()
-        serializer = BaseEmisSerializer(data)
-        return Response(serializer.data)
+        emis_user = EmisUser.objects.get(username=request.data.get('username'))
+        if self.should_use_cache(emis_user):
+            return Response(json.loads(emis_user.scores))
+        else:
+            data = core.Score(request).get_total_score()
+            serializer = BaseEmisSerializer(data)
+            return Response(serializer.data)
+
+    @staticmethod
+    def should_use_cache(emis_user):
+        if emis_user.scores_last_update is not None \
+           and datetime.datetime.now() - emis_user.scores_last_update < datetime.timedelta(minutes=5):
+            return True
+        else:
+            return False
 
 
 class CourseTableList(APIView):
@@ -32,7 +46,7 @@ class CourseTableList(APIView):
         return Response(serializer.data)
 
     def populate_current_semester(self, ):
-        now = datetime.now()
+        now = datetime.datetime.now()
         current_year = now.year
         current_month = now.month
         if 1 < current_month < 6:

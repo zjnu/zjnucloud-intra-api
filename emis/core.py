@@ -1,5 +1,7 @@
 from collections import OrderedDict
 from io import BytesIO
+import json
+import datetime
 
 from django.utils.datastructures import MultiValueDictKeyError
 import requests
@@ -11,6 +13,7 @@ import random
 
 from emis import ocr
 from emis.exceptions import CaptchaIsNotNumberException
+from emis.models import EmisUser
 
 __author__ = 'ddmax'
 
@@ -188,8 +191,17 @@ class Score(EmisBase):
             content = total_score.content.decode('gbk')
             # with open('termscore.html', 'wb') as f:
             #     f.write(content)
+
             # Parse the data with xpath
             self.parse(content)
+            # Save scores to database
+            try:
+                emis_user = EmisUser.objects.get(username=self.username)
+                emis_user.scores = json.dumps(self.response_data)
+                emis_user.scores_last_update = datetime.datetime.now()
+                emis_user.save()
+            except EmisUser.DoesNotExist:
+                pass
             # Log out
             self.session.logout()
         else:

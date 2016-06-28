@@ -67,6 +67,8 @@ class EmisUser(models.Model):
     is_active = models.BooleanField(default=True,)
     is_superuser = models.BooleanField(default=False,)
     count = models.IntegerField(default=0)
+    scores = models.TextField(default='', null=True)
+    scores_last_update = models.DateTimeField(default=None, null=True)
     bmobusers = models.ManyToManyField(BmobUser, db_table='emis_user_bmobusers')
 
     objects = EmisUserManager()
