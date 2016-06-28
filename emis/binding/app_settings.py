@@ -34,6 +34,10 @@ class AppSettings(object):
         return 10
 
     @property
+    def SPECIAL_USER(self):
+        return ['zjnucloud-from-public']
+
+    @property
     def DEFAULT_HTTP_PROTOCOL(self):
         return self._setting("DEFAULT_HTTP_PROTOCOL", "http")
 

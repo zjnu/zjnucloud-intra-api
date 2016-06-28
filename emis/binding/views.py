@@ -286,7 +286,8 @@ class BindingView(APIView, SignupView):
         try:
             bmob_user = BmobUser.objects.get(bmob_user=bmob_username)
             count = bmob_user.emisuser_set.count()
-            if count >= app_settings.BMOB_USER_LIMIT:
+            if bmob_username not in app_settings.SPECIAL_USER \
+               and count >= app_settings.BMOB_USER_LIMIT:
                 self.append_message(
                     STATUS_EXCEED_BMOB_BIND_TIMES_LIMIT,
                     MSG_EXCEED_BMOB_BIND_TIMES_LIMIT,
