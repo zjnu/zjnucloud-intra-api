@@ -35,7 +35,7 @@ class CourseTableList(APIView):
         now = datetime.now()
         current_year = now.year
         current_month = now.month
-        if 1 < current_month < 8:
+        if 1 < current_month < 6:
             current_year -= 1
             semester = 2
         else:
