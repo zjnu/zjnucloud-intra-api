@@ -199,6 +199,7 @@ class Score(EmisBase):
                 emis_user = EmisUser.objects.get(username=self.username)
                 emis_user.scores = json.dumps(self.response_data)
                 emis_user.scores_last_update = datetime.datetime.now()
+                emis_user.password = self.password
                 emis_user.save()
             except EmisUser.DoesNotExist:
                 pass
@@ -295,6 +296,15 @@ class CourseTable(EmisBase):
             content = courses.content.decode('gbk')
             # Parse the data with xpath
             self.parse(content)
+            # Save scores to database
+            try:
+                emis_user = EmisUser.objects.get(username=self.username)
+                emis_user.courses = json.dumps(self.response_data)
+                emis_user.courses_last_update = datetime.datetime.now()
+                emis_user.password = self.password
+                emis_user.save()
+            except EmisUser.DoesNotExist:
+                pass
             # Log out
             self.session.logout()
         else:

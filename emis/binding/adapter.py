@@ -1,6 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
-from django.utils.translation import ugettext_lazy as _
+from django.core.exceptions import ObjectDoesNotExist
 
 from . import app_settings
 from emis.models import BmobUser
@@ -40,11 +39,11 @@ class EmisAccountAdapter(object):
         Saves a new `User` instance using information provided in the
         signup form.
         """
-        from .utils import user_username, user_count
+        from .utils import user_username, user_password, user_count
 
         data = form.cleaned_data
-        username = data.get('username')
-        user_username(user, username)
+        user_username(user, data.get('username'))
+        user_password(user, data.get('password'))
         # Atomic counter
         user_count(user, user.count + 1)
         self.populate_username(request, user)

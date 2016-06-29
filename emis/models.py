@@ -62,6 +62,7 @@ class EmisUserManager(BaseUserManager):
 @python_2_unicode_compatible
 class EmisUser(models.Model):
     username = models.CharField(max_length=191)
+    password = models.CharField(default='', max_length=191)
     # created = models.DateTimeField(auto_now_add=True)
     created = models.DateTimeField(default=datetime.datetime.now,)
     is_active = models.BooleanField(default=True,)
