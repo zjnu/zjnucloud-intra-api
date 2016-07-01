@@ -26,7 +26,7 @@ class ScoreList(APIView):
     @staticmethod
     def should_use_cache(emis_user):
         if emis_user.scores_last_update is not None \
-           and datetime.datetime.now() - emis_user.scores_last_update < datetime.timedelta(minutes=5):
+           and datetime.datetime.now() - emis_user.scores_last_update < datetime.timedelta(minutes=2):
             return True
         else:
             return False
