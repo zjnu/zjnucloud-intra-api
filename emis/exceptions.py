@@ -9,3 +9,12 @@ class CaptchaIsNotNumberException(Exception):
 
     def __str__(self):
         return self.detail
+
+
+class ContentParseError(Exception):
+
+    def __init__(self):
+        self.detail = 'EMIS content can not be parsed correctly.'
+
+    def __str__(self):
+        return self.detail

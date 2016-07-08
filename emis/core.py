@@ -2,17 +2,16 @@ from collections import OrderedDict
 from io import BytesIO
 import json
 import datetime
+import re
+import random
 
 from django.utils.datastructures import MultiValueDictKeyError
 import requests
-import re
 from PIL import Image
 from lxml import etree
-import time
-import random
 
 from emis import ocr
-from emis.exceptions import CaptchaIsNotNumberException
+from emis.exceptions import CaptchaIsNotNumberException, ContentParseError
 from emis.models import EmisUser
 
 __author__ = 'ddmax'
@@ -46,8 +45,10 @@ MSG_ERR_PASSWORD = '你的密码输错了呢，请检查。'  # Password invalid
 # MSG_ERR_CODE = '教务系统已关闭，本学期将不再会有数据更新，请在下学期开学前后再访问'  # EMIS closed
 MSG_ERR_CODE = '教务系统无法访问了，可能正在维护'  # EMIS closed
 MSG_ERR_EMIS = '教务系统的访问量太高，过会儿再访问吧！'  # EMIS error
-MSG_BMOB_BIND_TIMES_COUNT = '绑定成功！你还能绑定{}个教务账号。'  # Exceed bmob account bind times limit
-# MSG_EMIS_BIND_TIMES_COUNT = ''  # Exceed EMIS account bind times limit
+MSG_ERR_EMIS_SCORE_EMPTY = '教务系统的成绩数据异常，显示的是上次查询的数据'  # Empty EMIS score
+MSG_ERR_EMIS_SCORE_EMPTY_AND_FIRST_TIME = '教务系统的成绩数据异常，过段时间再来吧'  # Empty EMIS score and query first time
+MSG_BMOB_BIND_TIMES_COUNT = '绑定成功！你还能绑定{}个教务账号。'  # Bmob account bind success & times limit
+MSG_EMIS_BIND_TIMES_COUNT = ''  # Exceed EMIS account bind times limit
 MSG_EXCEED_BMOB_BIND_TIMES_LIMIT = '你绑定过的教务账号太多了呢，请联系我们处理。'  # Exceed bmob account bind times limit
 MSG_EXCEED_EMIS_BIND_TIMES_LIMIT = '该教务账号已被{}个人绑定，太丧病了吧！请联系我们处理。'  # Exceed EMIS account bind times limit
 
@@ -189,25 +190,30 @@ class Score(EmisBase):
             total_score = self.session.post(URL_TOTALSCORE, headers=gen_random_header())
             total_score.encoding = 'gbk'
             content = total_score.content.decode('gbk')
-            # with open('termscore.html', 'wb') as f:
-            #     f.write(content)
-
-            # Parse the data with xpath
-            self.parse(content)
-            # Save scores to database
             try:
                 emis_user = EmisUser.objects.get(username=self.username)
+                # Parse the data with xpath
+                self.parse(content)
+                # Save scores to database
                 emis_user.scores = json.dumps(self.response_data)
                 emis_user.scores_last_update = datetime.datetime.now()
                 emis_user.password = self.password
                 emis_user.save()
             except EmisUser.DoesNotExist:
                 pass
+            except ContentParseError:
+                # Sometimes scores in EMIS can disappear!!?
+                if emis_user.scores:
+                    self.response_data = emis_user.scores
+                    self.response_data['message'] = MSG_ERR_EMIS_SCORE_EMPTY
+                else:
+                    self.response_data['message'] = MSG_ERR_EMIS_SCORE_EMPTY_AND_FIRST_TIME
+                    self.response_data['scores'] = []
             # Log out
             self.session.logout()
         else:
             # Empty score if login failed
-            self.response_data['scores'] = list()
+            self.response_data['scores'] = []
         return self.response_data
 
     def parse(self, content):
@@ -219,43 +225,46 @@ class Score(EmisBase):
         # Student name
         banner_content = str(selector.xpath(r'//div/p/b/font/span/text()')[0]).strip()
         self.response_data['name'] = banner_content[0:banner_content.index('同学')]
-        # Total credits
-        total_credits = str(selector.xpath(r'//div/p/font/text()')[0]).strip()
-        self.response_data['credits'] = total_credits
-        # GPA
-        gpa = str(selector.xpath(r'//div/p/font/text()')[1]).strip()
-        self.response_data['gpa'] = gpa
-        # Score table
-        all_data_cells = selector.xpath(r'//table/tr[position()>1]')
-        all_data_cells.reverse()
-        # Semester info
-        semesters = list()
-        for each in all_data_cells:
-            value = str(each.xpath(r'./td/div/text()')[0]).strip()
-            if value not in semesters:
-                semesters.append(value)
-        # Divide scores with each semester
-        scores = list()
-        for name in semesters:
-            each_semester = dict()
-            each_semester['semester'] = name[:-1] + '学年第' + name[-1:] + '学期'
-            self.parse_semester_gpa(name[:-1], name[-1:], each_semester)
-            values = list()
+        try:
+            # Total credits
+            total_credits = str(selector.xpath(r'//div/p/font/text()')[0]).strip()
+            self.response_data['credits'] = total_credits
+            # GPA
+            gpa = str(selector.xpath(r'//div/p/font/text()')[1]).strip()
+            self.response_data['gpa'] = gpa
+            # Score table
+            all_data_cells = selector.xpath(r'//table/tr[position()>1]')
+            all_data_cells.reverse()
+            # Semester info
+            semesters = list()
             for each in all_data_cells:
-                if str(each.xpath(r'./td/div/text()')[0]).strip() == name:
-                    info = OrderedDict()
-                    info['id'] = str(each.xpath(r'./td/div/text()')[1]).strip()
-                    info['name'] = str(each.xpath(r'./td/div/text()')[2]).strip()
-                    info['credit'] = str(each.xpath(r'./td/div/text()')[3]).strip()
-                    info['mark'] = str(each.xpath(r'./td/div/text()')[4]).strip()
-                    info['makeupmark'] = str(each.xpath(r'./td/div/text()')[5]).strip()
-                    info['retakemark'] = str(each.xpath(r'./td/div/text()')[6]).strip()
-                    info['gradepoint'] = str(each.xpath(r'./td/div/text()')[7]).strip()
-                    values.append(info)
-            each_semester['values'] = values
-            scores.append(each_semester)
-        self.response_data['count'] = len(all_data_cells)
-        self.response_data['scores'] = scores
+                value = str(each.xpath(r'./td/div/text()')[0]).strip()
+                if value not in semesters:
+                    semesters.append(value)
+            # Divide scores with each semester
+            scores = list()
+            for name in semesters:
+                each_semester = dict()
+                each_semester['semester'] = name[:-1] + '学年第' + name[-1:] + '学期'
+                self.parse_semester_gpa(name[:-1], name[-1:], each_semester)
+                values = list()
+                for each in all_data_cells:
+                    if str(each.xpath(r'./td/div/text()')[0]).strip() == name:
+                        info = OrderedDict()
+                        info['id'] = str(each.xpath(r'./td/div/text()')[1]).strip()
+                        info['name'] = str(each.xpath(r'./td/div/text()')[2]).strip()
+                        info['credit'] = str(each.xpath(r'./td/div/text()')[3]).strip()
+                        info['mark'] = str(each.xpath(r'./td/div/text()')[4]).strip()
+                        info['makeupmark'] = str(each.xpath(r'./td/div/text()')[5]).strip()
+                        info['retakemark'] = str(each.xpath(r'./td/div/text()')[6]).strip()
+                        info['gradepoint'] = str(each.xpath(r'./td/div/text()')[7]).strip()
+                        values.append(info)
+                each_semester['values'] = values
+                scores.append(each_semester)
+            self.response_data['count'] = len(all_data_cells)
+            self.response_data['scores'] = scores
+        except IndexError:
+            raise ContentParseError()
 
     def parse_semester_gpa(self, year, semester, result_dict):
         """
