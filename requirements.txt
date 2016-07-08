@@ -9,3 +9,4 @@ pyocr
 pytesseract
 drfdocs
 mysqlclient
+celery

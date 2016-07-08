@@ -208,10 +208,12 @@ class OneCardBalanceList(GenericAPIView):
         """
         is_amount_valid, amount = core.OneCardBalance.check_amount(request.data.get('amount'))
         pay_password = request.data.get('payPassword')
+        push_credential = request.data.get('pushCredential')
         if is_amount_valid:
             data = core.OneCardBalance(username).charge(
                 amount,
                 pay_password,
+                push_credential,
             )
         else:
             if not amount:
@@ -225,19 +227,11 @@ class OneCardBalanceList(GenericAPIView):
                     core.MSG_ONLINE_BANK_CHARGE_AMOUNT_LIMIT
                 )
 
-        data['username'] = username
-        data['amount'] = amount
-        serializer = OneCardChargeSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-        else:
-            print(serializer.errors)
-
-        if data.get('code') == core.STATUS_ONLINE_BANK_CHARGE_SUCCESS:
+        if data.get('code') == core.STATUS_ONLINE_BANK_CHARGE_APPLIED:
             status_code = status.HTTP_201_CREATED
         else:
             status_code = status.HTTP_400_BAD_REQUEST
-        return Response(serializer.data, status=status_code)
+        return Response(data, status=status_code)
 
 
 class OneCardDailyTransactionsList(GenericAPIView):

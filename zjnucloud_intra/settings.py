@@ -99,7 +99,7 @@ WSGI_APPLICATION = 'zjnucloud_intra.wsgi.application'
 DATABASES = {
     # 'default': {
     #     'ENGINE': 'django.db.backends.sqlite3',
-    #     'NAME': os.path.join(BASE_DIR, 'db-prod.sqlite3'),
+    #     'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     # },
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -110,6 +110,15 @@ DATABASES = {
         'PORT': '3306',
         'OPTIONS': {'charset': 'utf8mb4'},
     },
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.mysql',
+    #     'NAME': 'wyc',
+    #     'USER': 'wyc',
+    #     'PASSWORD': '{ddmax}',
+    #     'HOST': '10.1.68.214',
+    #     'PORT': '3306',
+    #     'OPTIONS': {'charset': 'utf8mb4'},
+    # },
     # 'bce': {
     #     'ENGINE': 'django.db.backends.mysql',
     #     'NAME': 'zjnucloud_intra',
@@ -144,3 +153,7 @@ STATIC_URL = '/static/'
 
 # Uncomment following in production
 # STATIC_ROOT = '/opt/django/static/'
+
+
+# Celery settings
+BROKER_URL = 'amqp://guest:guest@localhost:5672//'
