@@ -7,11 +7,10 @@ import decimal
 from lxml import etree
 import requests
 
-from onecard.models import OneCardUser, OneCardCharge, OneCardElectricityBuildings
+from onecard.models import OneCardUser, OneCardCharge, OneCardElectricityRoom
 from onecard.tasks import refresh_charge_status
 
 # OneCard_URL
-
 URL_LOGIN = 'http://ykt.zjnu.edu.cn/'
 URL_MAIN = 'http://ykt.zjnu.edu.cn/Cardholder/Cardholder.aspx'
 URL_DETAIL = 'http://ykt.zjnu.edu.cn/Cardholder/AccInfo.aspx'
@@ -534,7 +533,7 @@ class OneCardElectricity(OneCardBase):
         buildings = selector.xpath(r'//select[@name="lsArea"]/option/text()')
 
         # Bulk create if no data in the table to improve performance
-        is_empty_table = True if not OneCardElectricityBuildings.objects.all() else False
+        is_empty_table = True if not OneCardElectricityRoom.objects.all() else False
         if is_empty_table:
             room_objects = list()
 
@@ -562,13 +561,13 @@ class OneCardElectricity(OneCardBase):
                 value = room.attrib['value']
                 text = room.text
                 if is_empty_table:
-                    room_objects.append(OneCardElectricityBuildings(building=building, room=text, value=value))
+                    room_objects.append(OneCardElectricityRoom(building=building, room=text, value=value))
                 else:
-                    OneCardElectricityBuildings.objects.get_or_create(building=building, room=text, value=value)
+                    OneCardElectricityRoom.objects.get_or_create(building=building, room=text, value=value)
 
         # Do bulk_create
         if is_empty_table:
-            OneCardElectricityBuildings.objects.bulk_create(room_objects)
+            OneCardElectricityRoom.objects.bulk_create(room_objects)
 
         self.response_data['message'] = MSG_ELECTRICITY_BUILDINGS_CREATED
         self.response_data['result'] = None
@@ -580,7 +579,7 @@ class OneCardElectricity(OneCardBase):
 
     def get_room_info(self, building, room):
         try:
-            _room = OneCardElectricityBuildings.objects.filter(building='初阳', room='A1-104')[0]
+            _room = OneCardElectricityRoom.objects.filter(building='初阳', room='A1-104')[0]
             if not self.__post_room_data(_room):
                 self.response_data['code'] = STATUS_SUCCESS
                 self.response_data['message'] = MSG_ELECTRICITY_GET_ROOM_INFO_FAILED
@@ -590,7 +589,7 @@ class OneCardElectricity(OneCardBase):
             content = res.content.decode('gbk')
             self.parse_room_info(content)
 
-        except OneCardElectricityBuildings.DoesNotExist:
+        except OneCardElectricityRoom.DoesNotExist:
             self._append_error_response_data(
                 STATUS_ELECTRICITY_BUILDING_NOT_FOUND,
                 MSG_ELECTRICITY_BUILDINGS_NOT_FOUND

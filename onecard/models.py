@@ -78,13 +78,24 @@ class OneCardCharge(models.Model):
         ordering = ('created',)
 
 
-class OneCardElectricityBuildings(models.Model):
-    building = models.CharField(default='', max_length=191,)
-    room = models.CharField(default='', max_length=191,)
-    value = models.CharField(default='', max_length=32,)
+class OneCardElectricityBuilding(models.Model):
+    name = models.CharField(default='', max_length=32)
+    viewstate = models.TextField(default='', null=True)
+    eventvalidation = models.TextField(default='', null=True)
 
     class Meta:
         db_table = 'dict_onecard_electricity_buildings'
+
+
+class OneCardElectricityRoom(models.Model):
+    building = models.CharField(default='', max_length=191,)
+    room = models.CharField(default='', max_length=191,)
+    value = models.CharField(default='', max_length=32,)
+    viewstate = models.TextField(default='', null=True)
+    eventvalidation = models.TextField(default='', null=True)
+
+    class Meta:
+        db_table = 'dict_onecard_electricity_rooms'
 
 
 @python_2_unicode_compatible
